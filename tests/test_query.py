@@ -46,3 +46,22 @@ def test_valid_cte_and_unknown_column(tmp_path):
     query.validate_sql('WITH x AS (SELECT c1, COUNT(*) AS n FROM dataset GROUP BY c1) SELECT c1, SUM(n) FROM x GROUP BY c1', p['columns'])
     with pytest.raises(ValueError):
         query.validate_sql('SELECT unknown, COUNT(*) FROM dataset GROUP BY unknown', p['columns'])
+
+
+def test_worker_uses_dedicated_entry_and_receives_no_credentials(tmp_path,monkeypatch):
+    query=importlib.import_module('backend.query')
+    p=profile(tmp_path)
+    monkeypatch.setenv('OPENAI_API_KEY','test-provider-secret')
+    monkeypatch.setenv('BLOB_READ_WRITE_TOKEN','test-storage-secret')
+    monkeypatch.setenv('WORKSPACE_PASSWORD','test-password')
+    original=query.subprocess.Popen
+    seen={}
+    def launch(command,**options):
+        seen.update(command=command,environment=options['env'])
+        return original(command,**options)
+    monkeypatch.setattr(query.subprocess,'Popen',launch)
+    assert query.execute_query(p,'SELECT COUNT(*) FROM dataset')['rows']==[[3]]
+    assert seen['command'][-2:]==['-m','backend.query_worker']
+    assert not any(k in seen['environment'] for k in ('OPENAI_API_KEY','BLOB_READ_WRITE_TOKEN','WORKSPACE_PASSWORD'))
+    with pytest.raises(ValueError,match='exceeded'):
+        query.execute_query(p,'SELECT COUNT(*) FROM dataset',timeout=.00001)

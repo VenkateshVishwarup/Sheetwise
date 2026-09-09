@@ -1,6 +1,10 @@
 """Fail-closed SQL validation and a killable, read-only DuckDB worker."""
-import multiprocessing
+import json
+import os
+import subprocess
+import sys
 import time
+from pathlib import Path
 
 import duckdb
 import sqlglot
@@ -87,27 +91,29 @@ def _worker(database_path, keys, sql, pipe):
 
 def execute_query(profile, sql, timeout=10):
     safe_sql = validate_sql(sql, profile['columns'])
-    ctx = multiprocessing.get_context('spawn')
-    receiver, sender = ctx.Pipe(duplex=False)
     keys=[c['key'] for c in profile['columns'] if c['queryable']]
-    process = ctx.Process(target=_worker, args=(profile['databasePath'], keys, safe_sql, sender), daemon=True)
+    # Start a dedicated module instead of importing the hosting platform's __main__
+    # through multiprocessing. Pass dependencies, but no provider/storage credentials.
+    environment={key:os.environ[key] for key in ('PATH','LD_LIBRARY_PATH','DYLD_LIBRARY_PATH','LANG','LC_ALL','SYSTEMROOT') if key in os.environ}
+    environment['PYTHONPATH']=os.pathsep.join(sys.path)
+    process=subprocess.Popen([sys.executable,'-m','backend.query_worker'],stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE,cwd=Path(__file__).resolve().parents[1],env=environment)
     start = time.monotonic()
-    process.start()
-    sender.close()
     try:
-        if not receiver.poll(timeout):
+        try:
+            output,_=process.communicate(json.dumps({'databasePath':profile['databasePath'],'keys':keys,'sql':safe_sql}).encode(),timeout=timeout)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            process.communicate()
             raise ValueError('This query exceeded 10 seconds. Ask a narrower question.')
         try:
-            result = receiver.recv()
-        except EOFError:
+            result=json.loads(output)
+        except (json.JSONDecodeError,UnicodeDecodeError):
             raise ValueError('The query worker stopped. Try a smaller aggregation.') from None
         if 'error' in result:
             raise ValueError(result['message'])
         result['elapsedMs'] = round((time.monotonic()-start)*1000)
         return result
     finally:
-        receiver.close()
-        process.join(.2)
-        if process.is_alive():
-            process.terminate()
-            process.join()
+        if process.poll() is None:
+            process.kill()
+            process.communicate()
