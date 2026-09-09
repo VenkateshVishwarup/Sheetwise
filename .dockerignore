@@ -1,0 +1,13 @@
+.git
+.venv
+.data
+node_modules
+dist
+.env
+.env.local
+.wrangler
+outputs
+work
+tests
+__pycache__
+.pytest_cache

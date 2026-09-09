@@ -1,0 +1,19 @@
+'use client';
+import { useEffect, useState } from 'react';
+import { Search, LockKeyhole, Hash, Type, CalendarDays, ToggleLeft, ChevronLeft, ChevronRight } from 'lucide-react';
+import { api, number } from '@/lib/api';
+import type { Dataset, Preview } from '@/lib/types';
+
+export function DataExplorer({ dataset }: { dataset: Dataset }) {
+  const [search,setSearch]=useState('');
+  const [mode,setMode]=useState<'columns'|'rows'>('columns');
+  const [preview,setPreview]=useState<Preview|null>(null);
+  const [offset,setOffset]=useState(0);
+  const [error,setError]=useState('');
+  useEffect(()=>{let active=true;api<Preview>(`/datasets/${dataset.id}/preview?offset=${offset}`).then(p=>{if(active)setPreview(p);}).catch(e=>{if(active)setError(e.message);});return()=>{active=false;};},[dataset.id,offset]);
+  function page(next:number) {setPreview(null);setError('');setOffset(next);}
+  const columns=dataset.columns.filter(c=>c.name.toLowerCase().includes(search.toLowerCase()));
+  return <section className="explorer panel"><div className="explorer-toolbar"><div className="segmented"><button className={mode==='columns'?'active':''} onClick={()=>setMode('columns')}>Columns <span>{dataset.columnCount}</span></button><button className={mode==='rows'?'active':''} onClick={()=>setMode('rows')}>Row preview</button></div><label className="search-field"><Search size={16}/><input placeholder="Find a column…" aria-label="Find a column" value={search} onChange={e=>setSearch(e.target.value)}/></label></div>
+    {mode==='columns'?<div className="table-scroll"><table className="column-table"><thead><tr><th>Column name</th><th>Type</th><th aria-label="Populated values">Coverage</th><th>Unique</th><th aria-label="Chat access">Chat access</th></tr></thead><tbody>{columns.map(c=><tr key={c.key}><td><span className="column-name">{c.type==='number'?<Hash size={15}/>:c.type==='date'?<CalendarDays size={15}/>:c.type==='boolean'?<ToggleLeft size={15}/>:<Type size={15}/>}<span>{c.name}</span></span></td><td><span className="type-tag">{c.type}</span></td><td aria-label={`${c.coverage}% populated`}><div className="coverage-cell"><span>{c.coverage}%</span><div><i style={{width:`${c.coverage}%`}}/></div></div></td><td>{number(c.distinctCount)}</td><td>{c.sensitive?<span className="protected"><LockKeyhole size={12}/> Protected</span>:c.queryable?<span className="available-dot">Available</span>:<span className="muted">Not used</span>}</td></tr>)}</tbody></table>{!columns.length&&<p className="empty-small">No columns match “{search}”.</p>}</div>:<><div className="preview-note"><LockKeyhole size={14}/> Personal values are masked. Original values are preserved in the source preview.</div>{error?<p role="alert" className="error-note">{error}</p>:!preview?<div className="empty-small">Loading rows…</div>:<div className="table-scroll"><table className="preview-table"><thead><tr><th aria-label="Row number">#</th>{preview.columns.filter(c=>columns.some(x=>x.key===c.key)).map(c=><th key={c.key} aria-label={c.name}>{c.name}{c.sensitive&&<LockKeyhole size={11}/>}</th>)}</tr></thead><tbody>{preview.rows.map((r,i)=><tr key={i}><td>{offset+i+1}</td>{preview.columns.filter(c=>columns.some(x=>x.key===c.key)).map(c=><td key={c.key} title={String(r[c.key]??'')} className={r[c.key]==null?'null-cell':''}>{r[c.key]==null?'—':String(r[c.key])}</td>)}</tr>)}</tbody></table></div>}<div className="pagination"><span>Rows {offset+1}–{Math.min(offset+25,dataset.rowCount)} of {number(dataset.rowCount)}</span><div><button aria-label="Previous rows" disabled={offset===0} onClick={()=>page(Math.max(0,offset-25))}><ChevronLeft size={16}/></button><button aria-label="Next rows" disabled={offset+25>=dataset.rowCount} onClick={()=>page(offset+25)}><ChevronRight size={16}/></button></div></div></>}
+  </section>;
+}

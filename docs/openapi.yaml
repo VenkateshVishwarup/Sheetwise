@@ -1,0 +1,1939 @@
+openapi: 3.0.3
+info:
+  title: Sheetwise API
+  version: 1.0.0
+  description: Private spreadsheet analytics. One shared internal workspace; all analytical
+    database paths remain server-side. Schemas and examples are defined in components.
+servers:
+- url: http://127.0.0.1:8000
+  description: Local development; use your HTTPS internal origin for deployment.
+security:
+- WorkspaceSession: []
+paths:
+  /api/status:
+    get:
+      operationId: getWorkspaceStatus
+      summary: Read sign-in and AI configuration status.
+      description: Read sign-in and AI configuration status. All records belong to
+        the single authenticated internal workspace.
+      responses:
+        '200':
+          description: Request completed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkspaceStatus'
+        '400':
+          description: Bad Request — invalid fields, unsupported file or rejected
+            query.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized — a valid workspace session is required.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden — untrusted host or cross-origin write.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Not Found — dataset or answer does not exist.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '413':
+          description: Payload Too Large — request or file exceeds its limit.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Too Many Requests — import or analysis capacity is busy.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal Error — the request could not be completed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Service Unavailable — AI configuration, credits or provider
+            availability prevents analysis.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      security: []
+  /api/session:
+    post:
+      operationId: createWorkspaceSession
+      summary: Create an HttpOnly workspace session.
+      description: Create an HttpOnly workspace session. All records belong to the
+        single authenticated internal workspace.
+      responses:
+        '200':
+          description: Request completed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionResult'
+          headers:
+            Set-Cookie:
+              description: HttpOnly, SameSite=Strict session cookie; Secure when COOKIE_SECURE=true.
+              schema:
+                $ref: '#/components/schemas/Text'
+              example: sheetwise_session=(signed session); HttpOnly; SameSite=Strict;
+                Path=/
+        '400':
+          description: Bad Request — invalid fields, unsupported file or rejected
+            query.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized — a valid workspace session is required.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden — untrusted host or cross-origin write.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Not Found — dataset or answer does not exist.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '413':
+          description: Payload Too Large — request or file exceeds its limit.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Too Many Requests — import or analysis capacity is busy.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal Error — the request could not be completed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Service Unavailable — AI configuration, credits or provider
+            availability prevents analysis.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+    delete:
+      operationId: deleteWorkspaceSession
+      summary: Clear this browser’s workspace session cookie.
+      description: Clear this browser’s workspace session cookie. All records belong
+        to the single authenticated internal workspace.
+      responses:
+        '200':
+          description: Request completed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionResult'
+        '400':
+          description: Bad Request — invalid fields, unsupported file or rejected
+            query.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized — a valid workspace session is required.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden — untrusted host or cross-origin write.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Not Found — dataset or answer does not exist.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '413':
+          description: Payload Too Large — request or file exceeds its limit.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Too Many Requests — import or analysis capacity is busy.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal Error — the request could not be completed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Service Unavailable — AI configuration, credits or provider
+            availability prevents analysis.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      security: []
+  /api/datasets:
+    get:
+      operationId: listDatasets
+      summary: List uploaded datasets.
+      description: List uploaded datasets. All records belong to the single authenticated
+        internal workspace.
+      responses:
+        '200':
+          description: Request completed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DatasetList'
+        '400':
+          description: Bad Request — invalid fields, unsupported file or rejected
+            query.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized — a valid workspace session is required.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden — untrusted host or cross-origin write.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Not Found — dataset or answer does not exist.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '413':
+          description: Payload Too Large — request or file exceeds its limit.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Too Many Requests — import or analysis capacity is busy.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal Error — the request could not be completed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Service Unavailable — AI configuration, credits or provider
+            availability prevents analysis.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    post:
+      operationId: uploadDataset
+      summary: Import and profile a CSV or XLSX file.
+      description: Import and profile a CSV or XLSX file. All records belong to the
+        single authenticated internal workspace.
+      responses:
+        '201':
+          description: Created successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Dataset'
+        '400':
+          description: Bad Request — invalid fields, unsupported file or rejected
+            query.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized — a valid workspace session is required.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden — untrusted host or cross-origin write.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Not Found — dataset or answer does not exist.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '413':
+          description: Payload Too Large — request or file exceeds its limit.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Too Many Requests — import or analysis capacity is busy.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal Error — the request could not be completed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Service Unavailable — AI configuration, credits or provider
+            availability prevents analysis.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/UploadRequest'
+  /api/demo:
+    post:
+      operationId: createDemoDataset
+      summary: Create a clearly labeled synthetic demonstration dataset.
+      description: Create a clearly labeled synthetic demonstration dataset. All records
+        belong to the single authenticated internal workspace.
+      responses:
+        '201':
+          description: Created successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Dataset'
+        '400':
+          description: Bad Request — invalid fields, unsupported file or rejected
+            query.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized — a valid workspace session is required.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden — untrusted host or cross-origin write.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Not Found — dataset or answer does not exist.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '413':
+          description: Payload Too Large — request or file exceeds its limit.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Too Many Requests — import or analysis capacity is busy.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal Error — the request could not be completed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Service Unavailable — AI configuration, credits or provider
+            availability prevents analysis.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/datasets/{dataset_id}:
+    get:
+      operationId: getDataset
+      summary: Read a dataset profile and its default dashboard.
+      description: Read a dataset profile and its default dashboard. All records belong
+        to the single authenticated internal workspace.
+      responses:
+        '200':
+          description: Request completed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Dataset'
+        '400':
+          description: Bad Request — invalid fields, unsupported file or rejected
+            query.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized — a valid workspace session is required.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden — untrusted host or cross-origin write.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Not Found — dataset or answer does not exist.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '413':
+          description: Payload Too Large — request or file exceeds its limit.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Too Many Requests — import or analysis capacity is busy.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal Error — the request could not be completed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Service Unavailable — AI configuration, credits or provider
+            availability prevents analysis.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      parameters:
+      - name: dataset_id
+        in: path
+        required: true
+        description: The dataset selected in the workspace.
+        schema:
+          $ref: '#/components/schemas/ResourceId'
+        example: 8c6bc148-166a-4cdd-b3d8-21609201b05f
+  /api/datasets/{dataset_id}/preview:
+    get:
+      operationId: getDatasetPreview
+      summary: Preview masked original values.
+      description: Preview masked original values. All records belong to the single
+        authenticated internal workspace.
+      responses:
+        '200':
+          description: Request completed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Preview'
+        '400':
+          description: Bad Request — invalid fields, unsupported file or rejected
+            query.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized — a valid workspace session is required.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden — untrusted host or cross-origin write.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Not Found — dataset or answer does not exist.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '413':
+          description: Payload Too Large — request or file exceeds its limit.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Too Many Requests — import or analysis capacity is busy.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal Error — the request could not be completed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Service Unavailable — AI configuration, credits or provider
+            availability prevents analysis.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      parameters:
+      - name: dataset_id
+        in: path
+        required: true
+        description: The dataset selected in the workspace.
+        schema:
+          $ref: '#/components/schemas/ResourceId'
+        example: 8c6bc148-166a-4cdd-b3d8-21609201b05f
+      - name: offset
+        in: query
+        description: Number of preview records to skip.
+        schema:
+          $ref: '#/components/schemas/Offset'
+        example: 0
+      - name: limit
+        in: query
+        description: Maximum records returned in a preview page.
+        schema:
+          $ref: '#/components/schemas/PreviewLimit'
+        example: 25
+  /api/datasets/{dataset_id}/answers:
+    get:
+      operationId: listAnswers
+      summary: Read the dataset conversation history.
+      description: Read the dataset conversation history. All records belong to the
+        single authenticated internal workspace.
+      responses:
+        '200':
+          description: Request completed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Answers'
+        '400':
+          description: Bad Request — invalid fields, unsupported file or rejected
+            query.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized — a valid workspace session is required.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden — untrusted host or cross-origin write.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Not Found — dataset or answer does not exist.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '413':
+          description: Payload Too Large — request or file exceeds its limit.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Too Many Requests — import or analysis capacity is busy.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal Error — the request could not be completed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Service Unavailable — AI configuration, credits or provider
+            availability prevents analysis.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      parameters:
+      - name: dataset_id
+        in: path
+        required: true
+        description: The dataset selected in the workspace.
+        schema:
+          $ref: '#/components/schemas/ResourceId'
+        example: 8c6bc148-166a-4cdd-b3d8-21609201b05f
+  /api/datasets/{dataset_id}/chat:
+    post:
+      operationId: answerDatasetQuestion
+      summary: Plan, validate and execute an analytical question.
+      description: Plan, validate and execute an analytical question. All records
+        belong to the single authenticated internal workspace.
+      responses:
+        '200':
+          description: Request completed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Answer'
+        '400':
+          description: Bad Request — invalid fields, unsupported file or rejected
+            query.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized — a valid workspace session is required.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden — untrusted host or cross-origin write.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Not Found — dataset or answer does not exist.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '413':
+          description: Payload Too Large — request or file exceeds its limit.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Too Many Requests — import or analysis capacity is busy.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal Error — the request could not be completed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Service Unavailable — AI configuration, credits or provider
+            availability prevents analysis.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      parameters:
+      - name: dataset_id
+        in: path
+        required: true
+        description: The dataset selected in the workspace.
+        schema:
+          $ref: '#/components/schemas/ResourceId'
+        example: 8c6bc148-166a-4cdd-b3d8-21609201b05f
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChatRequest'
+  /api/datasets/{dataset_id}/pins:
+    get:
+      operationId: listPinnedAnswers
+      summary: List saved answers for this dataset.
+      description: List saved answers for this dataset. All records belong to the
+        single authenticated internal workspace.
+      responses:
+        '200':
+          description: Request completed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Answers'
+        '400':
+          description: Bad Request — invalid fields, unsupported file or rejected
+            query.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized — a valid workspace session is required.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden — untrusted host or cross-origin write.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Not Found — dataset or answer does not exist.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '413':
+          description: Payload Too Large — request or file exceeds its limit.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Too Many Requests — import or analysis capacity is busy.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal Error — the request could not be completed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Service Unavailable — AI configuration, credits or provider
+            availability prevents analysis.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      parameters:
+      - name: dataset_id
+        in: path
+        required: true
+        description: The dataset selected in the workspace.
+        schema:
+          $ref: '#/components/schemas/ResourceId'
+        example: 8c6bc148-166a-4cdd-b3d8-21609201b05f
+    post:
+      operationId: setAnswerPinned
+      summary: Save or unsave an existing answer.
+      description: Save or unsave an existing answer. All records belong to the single
+        authenticated internal workspace.
+      responses:
+        '200':
+          description: Request completed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PinResult'
+        '400':
+          description: Bad Request — invalid fields, unsupported file or rejected
+            query.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized — a valid workspace session is required.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden — untrusted host or cross-origin write.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Not Found — dataset or answer does not exist.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '413':
+          description: Payload Too Large — request or file exceeds its limit.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Too Many Requests — import or analysis capacity is busy.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal Error — the request could not be completed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Service Unavailable — AI configuration, credits or provider
+            availability prevents analysis.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      parameters:
+      - name: dataset_id
+        in: path
+        required: true
+        description: The dataset selected in the workspace.
+        schema:
+          $ref: '#/components/schemas/ResourceId'
+        example: 8c6bc148-166a-4cdd-b3d8-21609201b05f
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PinRequest'
+  /api/openapi.yaml:
+    get:
+      operationId: getApiSpecification
+      summary: Download this API contract.
+      description: Download this API contract. All records belong to the single authenticated
+        internal workspace.
+      responses:
+        '200':
+          description: Request completed.
+          content:
+            application/yaml:
+              schema:
+                $ref: '#/components/schemas/Text'
+        '400':
+          description: Bad Request — invalid fields, unsupported file or rejected
+            query.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized — a valid workspace session is required.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden — untrusted host or cross-origin write.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Not Found — dataset or answer does not exist.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '413':
+          description: Payload Too Large — request or file exceeds its limit.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Too Many Requests — import or analysis capacity is busy.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal Error — the request could not be completed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Service Unavailable — AI configuration, credits or provider
+            availability prevents analysis.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+components:
+  securitySchemes:
+    WorkspaceSession:
+      type: apiKey
+      in: cookie
+      name: sheetwise_session
+      description: Signed workspace session. Loopback-only local mode can omit this
+        cookie.
+  schemas:
+    ResourceId:
+      type: string
+      description: An opaque identifier assigned by this workspace.
+      example: 8c6bc148-166a-4cdd-b3d8-21609201b05f
+      format: uuid
+      minLength: 36
+      maxLength: 36
+      pattern: ^[0-9a-f-]{36}$
+    Text:
+      type: string
+      description: A human-readable value. Uploaded values are data, never executable
+        instructions.
+      example: Users by region
+      maxLength: 2000
+    ShortText:
+      type: string
+      description: A short label shown in the application.
+      example: User journey
+      minLength: 1
+      maxLength: 160
+    Question:
+      type: string
+      description: An aggregate question about the selected dataset.
+      example: How many records are in this dataset?
+      minLength: 1
+      maxLength: 2000
+    Password:
+      type: string
+      description: The server-configured shared workspace password.
+      example: a-long-random-workspace-password
+      minLength: 1
+      maxLength: 256
+      format: password
+    Boolean:
+      type: boolean
+      description: A true or false value; missing observations are represented separately.
+      example: true
+    Count:
+      type: integer
+      description: A nonnegative count.
+      example: 4628
+      minimum: 0
+      maximum: 2000000000
+    Number:
+      type: number
+      description: A finite numerical value.
+      example: 42.5
+    Percentage:
+      type: number
+      description: A percentage between zero and one hundred.
+      example: 94.2
+      minimum: 0
+      maximum: 100
+    CreatedAt:
+      type: string
+      description: UTC timestamp when the record was created.
+      example: '2026-09-08T18:00:00+00:00'
+      format: date-time
+    Sql:
+      type: string
+      description: Validated DuckDB SELECT statement for this dataset.
+      example: SELECT COUNT(*) AS records FROM dataset
+      maxLength: 12000
+    ColumnKey:
+      type: string
+      description: A safe SQL identifier independent of the uploaded header.
+      example: c1
+      pattern: ^c[0-9]{1,3}$
+      minLength: 2
+      maxLength: 4
+    ColumnType:
+      type: string
+      description: The conservative inferred analytical type.
+      example: category
+      enum:
+      - category
+      - boolean
+      - number
+      - date
+      - text
+      - identifier
+    PrivacyReason:
+      type: string
+      description: Why a column is protected or restricted.
+      example: personal
+      enum:
+      - ''
+      - identifier
+      - personal
+      - unstructured
+    AnswerKind:
+      type: string
+      description: An executed answer or a clarification that ran no SQL.
+      example: answer
+      enum:
+      - answer
+      - clarification
+    WireVersion:
+      type: string
+      description: Pinned A2UI protocol version.
+      example: v0.9.1
+      enum:
+      - v0.9.1
+    CatalogId:
+      type: string
+      description: Only the application-owned analytics catalog is accepted.
+      example: https://sheetwise.local/catalogs/analytics/v1
+      enum:
+      - https://sheetwise.local/catalogs/analytics/v1
+    ComponentType:
+      type: string
+      description: An approved analytics component.
+      example: BarChart
+      enum:
+      - Metric
+      - BarChart
+      - LineChart
+      - DataTable
+      - Notice
+    JsonPointer:
+      type: string
+      description: A path into the surface data model.
+      example: /rows
+      pattern: ^/.*$
+      maxLength: 160
+    File:
+      type: string
+      description: Uploaded UTF-8 CSV or XLSX content, at most 100 MB.
+      example: (binary CSV or XLSX file)
+      format: binary
+    NullableText:
+      type: string
+      description: An optional label; null means unavailable.
+      example: null
+      nullable: true
+      maxLength: 2000
+    NullableSql:
+      type: string
+      description: SQL is null when asking for clarification.
+      example: null
+      nullable: true
+      maxLength: 12000
+    Offset:
+      type: integer
+      description: Number of preview records to skip.
+      example: 0
+      minimum: 0
+      maximum: 2000000
+    PreviewLimit:
+      type: integer
+      description: Maximum records returned in a preview page.
+      example: 25
+      minimum: 1
+      maximum: 100
+    AttemptCount:
+      type: integer
+      description: Generation attempts, including up to two repairs. Zero means clarification.
+      example: 1
+      minimum: 0
+      maximum: 3
+    ComponentId:
+      type: string
+      description: Component identifier. Every surface has a root component.
+      example: root
+      minLength: 1
+      maxLength: 100
+      pattern: ^[A-Za-z0-9_-]+$
+    Cell:
+      description: A scalar result value. Null represents an unknown value.
+      nullable: true
+      example: 193
+      oneOf:
+      - $ref: '#/components/schemas/Text'
+      - $ref: '#/components/schemas/Number'
+      - $ref: '#/components/schemas/Boolean'
+    Strings:
+      type: array
+      items:
+        $ref: '#/components/schemas/Text'
+      maxItems: 500
+      description: A bounded list of display strings.
+      example:
+      - West
+      - East
+    ResultRow:
+      type: array
+      items:
+        $ref: '#/components/schemas/Cell'
+      maxItems: 500
+      description: Ordered scalar values for one result row.
+      example:
+      - west
+      - 240
+    ResultRows:
+      type: array
+      items:
+        $ref: '#/components/schemas/ResultRow'
+      maxItems: 200
+      description: Up to 200 executed result rows.
+      example:
+      - - west
+        - 240
+      - - east
+        - 160
+    DistributionItem:
+      type: object
+      description: Count of records with a normalized category value; Unknown represents
+        blanks.
+      properties:
+        label:
+          $ref: '#/components/schemas/Text'
+        count:
+          $ref: '#/components/schemas/Count'
+      required:
+      - label
+      - count
+      additionalProperties: false
+      example:
+        label: hot
+        count: 485
+    Distribution:
+      type: array
+      items:
+        $ref: '#/components/schemas/DistributionItem'
+      maxItems: 12
+      description: Top 12 categories by record count.
+      example:
+      - label: hot
+        count: 485
+    Column:
+      type: object
+      description: An inferred column profile. Numeric and boolean statistics are
+        present only when relevant.
+      properties:
+        key:
+          $ref: '#/components/schemas/ColumnKey'
+        name:
+          $ref: '#/components/schemas/ShortText'
+        type:
+          $ref: '#/components/schemas/ColumnType'
+        coverage:
+          $ref: '#/components/schemas/Percentage'
+        distinctCount:
+          $ref: '#/components/schemas/Count'
+        missingCount:
+          $ref: '#/components/schemas/Count'
+        sensitive:
+          $ref: '#/components/schemas/Boolean'
+        queryable:
+          $ref: '#/components/schemas/Boolean'
+        privacyReason:
+          $ref: '#/components/schemas/PrivacyReason'
+        distribution:
+          $ref: '#/components/schemas/Distribution'
+        trueCount:
+          $ref: '#/components/schemas/Count'
+        falseCount:
+          $ref: '#/components/schemas/Count'
+        min:
+          $ref: '#/components/schemas/Number'
+        max:
+          $ref: '#/components/schemas/Number'
+        mean:
+          $ref: '#/components/schemas/Number'
+        sum:
+          $ref: '#/components/schemas/Number'
+      required:
+      - key
+      - name
+      - type
+      - coverage
+      - distinctCount
+      - missingCount
+      - sensitive
+      - queryable
+      - privacyReason
+      - distribution
+      additionalProperties: false
+      example: &id001
+        key: c1
+        name: lead_status
+        type: category
+        coverage: 95.8
+        distinctCount: 4
+        missingCount: 193
+        sensitive: false
+        queryable: true
+        privacyReason: ''
+        distribution:
+        - label: hot
+          count: 485
+    Columns:
+      type: array
+      items:
+        $ref: '#/components/schemas/Column'
+      maxItems: 500
+      description: All retained column profiles.
+      example:
+      - *id001
+    DataBinding:
+      type: object
+      description: Resolve a component value from the executed surface data model.
+      properties:
+        path:
+          $ref: '#/components/schemas/JsonPointer'
+      required:
+      - path
+      additionalProperties: false
+      example:
+        path: /rows
+    BoundValue:
+      description: A literal scalar or a reference to surface data.
+      example:
+        path: /value
+      oneOf:
+      - $ref: '#/components/schemas/DataBinding'
+      - $ref: '#/components/schemas/Cell'
+    UiComponent:
+      type: object
+      description: Properties are validated against the named analytics component
+        catalog. Only relevant properties are supplied.
+      properties:
+        id:
+          $ref: '#/components/schemas/ComponentId'
+        component:
+          $ref: '#/components/schemas/ComponentType'
+        title:
+          $ref: '#/components/schemas/Text'
+        subtitle:
+          $ref: '#/components/schemas/Text'
+        value:
+          $ref: '#/components/schemas/BoundValue'
+        detail:
+          $ref: '#/components/schemas/BoundValue'
+        rows:
+          $ref: '#/components/schemas/DataBinding'
+        labelKey:
+          $ref: '#/components/schemas/Text'
+        valueKey:
+          $ref: '#/components/schemas/Text'
+        columns:
+          $ref: '#/components/schemas/Strings'
+        text:
+          $ref: '#/components/schemas/BoundValue'
+      required:
+      - id
+      - component
+      - title
+      - subtitle
+      additionalProperties: false
+      example: &id002
+        id: root
+        component: Metric
+        title: Records
+        subtitle: ''
+        value:
+          path: /value
+        detail:
+          path: /detail
+    UiComponents:
+      type: array
+      items:
+        $ref: '#/components/schemas/UiComponent'
+      maxItems: 50
+      description: Components to create or replace on a surface.
+      example:
+      - *id002
+    CreateSurface:
+      type: object
+      description: Create a surface using the fixed analytics catalog.
+      properties:
+        surfaceId:
+          $ref: '#/components/schemas/ResourceId'
+        catalogId:
+          $ref: '#/components/schemas/CatalogId'
+      required:
+      - surfaceId
+      - catalogId
+      additionalProperties: false
+      example: &id003
+        surfaceId: 8c6bc148-166a-4cdd-b3d8-21609201b05f
+        catalogId: https://sheetwise.local/catalogs/analytics/v1
+    UpdateComponents:
+      type: object
+      description: Create or replace declarative components.
+      properties:
+        surfaceId:
+          $ref: '#/components/schemas/ResourceId'
+        components:
+          $ref: '#/components/schemas/UiComponents'
+      required:
+      - surfaceId
+      - components
+      additionalProperties: false
+      example: &id004
+        surfaceId: 8c6bc148-166a-4cdd-b3d8-21609201b05f
+        components:
+        - *id002
+    DisplayRow:
+      type: object
+      description: A result object keyed by the executed result column labels.
+      additionalProperties:
+        $ref: '#/components/schemas/Cell'
+      example:
+        region: west
+        records: 240
+    DisplayRows:
+      type: array
+      items:
+        $ref: '#/components/schemas/DisplayRow'
+      maxItems: 200
+      description: Executed chart or table rows.
+      example:
+      - region: west
+        records: 240
+    SurfaceData:
+      type: object
+      description: Executed data for the selected component; only relevant properties
+        are present.
+      properties:
+        value:
+          $ref: '#/components/schemas/Cell'
+        detail:
+          $ref: '#/components/schemas/Text'
+        rows:
+          $ref: '#/components/schemas/DisplayRows'
+        labelKey:
+          $ref: '#/components/schemas/Text'
+        valueKey:
+          $ref: '#/components/schemas/Text'
+        columns:
+          $ref: '#/components/schemas/Strings'
+        text:
+          $ref: '#/components/schemas/Text'
+      additionalProperties: false
+      example:
+        value: 4628
+        detail: All records
+    UpdateDataModel:
+      type: object
+      description: Replace the surface data model with verified values.
+      properties:
+        surfaceId:
+          $ref: '#/components/schemas/ResourceId'
+        value:
+          $ref: '#/components/schemas/SurfaceData'
+      required:
+      - surfaceId
+      - value
+      additionalProperties: false
+      example: &id005
+        surfaceId: 8c6bc148-166a-4cdd-b3d8-21609201b05f
+        value:
+          value: 4628
+          detail: All records
+    CreateSurfaceMessage:
+      type: object
+      description: A2UI surface creation message.
+      properties:
+        version:
+          $ref: '#/components/schemas/WireVersion'
+        createSurface:
+          $ref: '#/components/schemas/CreateSurface'
+      required:
+      - version
+      - createSurface
+      additionalProperties: false
+      example: &id006
+        version: v0.9.1
+        createSurface: *id003
+    UpdateComponentsMessage:
+      type: object
+      description: A2UI component update message.
+      properties:
+        version:
+          $ref: '#/components/schemas/WireVersion'
+        updateComponents:
+          $ref: '#/components/schemas/UpdateComponents'
+      required:
+      - version
+      - updateComponents
+      additionalProperties: false
+      example: &id007
+        version: v0.9.1
+        updateComponents: *id004
+    UpdateDataModelMessage:
+      type: object
+      description: A2UI data binding update message.
+      properties:
+        version:
+          $ref: '#/components/schemas/WireVersion'
+        updateDataModel:
+          $ref: '#/components/schemas/UpdateDataModel'
+      required:
+      - version
+      - updateDataModel
+      additionalProperties: false
+      example: &id008
+        version: v0.9.1
+        updateDataModel: *id005
+    A2uiMessage:
+      description: One approved v0.9.1 lifecycle message.
+      example: *id006
+      oneOf:
+      - $ref: '#/components/schemas/CreateSurfaceMessage'
+      - $ref: '#/components/schemas/UpdateComponentsMessage'
+      - $ref: '#/components/schemas/UpdateDataModelMessage'
+    A2uiMessages:
+      type: array
+      items:
+        $ref: '#/components/schemas/A2uiMessage'
+      maxItems: 100
+      description: Ordered creation, component and data messages.
+      example: &id009
+      - *id006
+      - *id007
+      - *id008
+    DashboardCard:
+      type: object
+      description: An automatically generated card with source and SQL provenance.
+      properties:
+        id:
+          $ref: '#/components/schemas/Text'
+        title:
+          $ref: '#/components/schemas/Text'
+        source:
+          $ref: '#/components/schemas/Text'
+        sql:
+          $ref: '#/components/schemas/Sql'
+        messages:
+          $ref: '#/components/schemas/A2uiMessages'
+      required:
+      - id
+      - title
+      - source
+      - sql
+      - messages
+      additionalProperties: false
+      example: &id010
+        id: c1
+        title: Lead status
+        source: lead_status
+        sql: SELECT c1, COUNT(*) FROM dataset GROUP BY c1
+        messages: *id009
+    Dashboard:
+      type: array
+      items:
+        $ref: '#/components/schemas/DashboardCard'
+      maxItems: 10
+      description: Deterministic charts generated from all dataset records.
+      example: &id011
+      - *id010
+    DatasetSummary:
+      type: object
+      description: An uploaded dataset without column or dashboard details.
+      properties:
+        id:
+          $ref: '#/components/schemas/ResourceId'
+        name:
+          $ref: '#/components/schemas/ShortText'
+        filename:
+          $ref: '#/components/schemas/Text'
+        rowCount:
+          $ref: '#/components/schemas/Count'
+        inputColumnCount:
+          $ref: '#/components/schemas/Count'
+        columnCount:
+          $ref: '#/components/schemas/Count'
+        excludedCount:
+          $ref: '#/components/schemas/Count'
+        sizeBytes:
+          $ref: '#/components/schemas/Count'
+        createdAt:
+          $ref: '#/components/schemas/CreatedAt'
+        sheetName:
+          $ref: '#/components/schemas/NullableText'
+        isDemo:
+          $ref: '#/components/schemas/Boolean'
+      required:
+      - id
+      - name
+      - filename
+      - rowCount
+      - inputColumnCount
+      - columnCount
+      - excludedCount
+      - sizeBytes
+      - createdAt
+      - sheetName
+      additionalProperties: false
+      example: &id012
+        id: 8c6bc148-166a-4cdd-b3d8-21609201b05f
+        name: User journey
+        filename: journey.csv
+        rowCount: 4628
+        inputColumnCount: 134
+        columnCount: 133
+        excludedCount: 1
+        sizeBytes: 12888387
+        createdAt: '2026-09-08T18:00:00+00:00'
+        sheetName: null
+    Dataset:
+      type: object
+      description: The complete dataset profile and its default dashboard.
+      properties:
+        id:
+          $ref: '#/components/schemas/ResourceId'
+        name:
+          $ref: '#/components/schemas/ShortText'
+        filename:
+          $ref: '#/components/schemas/Text'
+        rowCount:
+          $ref: '#/components/schemas/Count'
+        inputColumnCount:
+          $ref: '#/components/schemas/Count'
+        columnCount:
+          $ref: '#/components/schemas/Count'
+        excludedCount:
+          $ref: '#/components/schemas/Count'
+        sizeBytes:
+          $ref: '#/components/schemas/Count'
+        createdAt:
+          $ref: '#/components/schemas/CreatedAt'
+        sheetName:
+          $ref: '#/components/schemas/NullableText'
+        isDemo:
+          $ref: '#/components/schemas/Boolean'
+        columns:
+          $ref: '#/components/schemas/Columns'
+        warnings:
+          $ref: '#/components/schemas/Strings'
+        dashboard:
+          $ref: '#/components/schemas/Dashboard'
+      required:
+      - id
+      - name
+      - filename
+      - rowCount
+      - inputColumnCount
+      - columnCount
+      - excludedCount
+      - sizeBytes
+      - createdAt
+      - sheetName
+      - columns
+      - warnings
+      - dashboard
+      additionalProperties: false
+      example:
+        id: 8c6bc148-166a-4cdd-b3d8-21609201b05f
+        name: User journey
+        filename: journey.csv
+        rowCount: 4628
+        inputColumnCount: 134
+        columnCount: 133
+        excludedCount: 1
+        sizeBytes: 12888387
+        createdAt: '2026-09-08T18:00:00+00:00'
+        sheetName: null
+        columns:
+        - *id001
+        warnings:
+        - Missing values remain unknown.
+        dashboard: *id011
+    DatasetList:
+      type: array
+      items:
+        $ref: '#/components/schemas/DatasetSummary'
+      maxItems: 10000
+      description: Datasets in this shared workspace, newest first.
+      example:
+      - *id012
+    PreviewColumn:
+      type: object
+      description: Source-preview column metadata.
+      properties:
+        key:
+          $ref: '#/components/schemas/ColumnKey'
+        name:
+          $ref: '#/components/schemas/Text'
+        type:
+          $ref: '#/components/schemas/ColumnType'
+        sensitive:
+          $ref: '#/components/schemas/Boolean'
+      required:
+      - key
+      - name
+      - type
+      - sensitive
+      additionalProperties: false
+      example: &id013
+        key: c1
+        name: lead_status
+        type: category
+        sensitive: false
+    PreviewColumns:
+      type: array
+      items:
+        $ref: '#/components/schemas/PreviewColumn'
+      maxItems: 500
+      description: Preview column definitions.
+      example: &id014
+      - *id013
+    PreviewRow:
+      type: object
+      description: Original values keyed by safe column IDs; protected values display
+        bullets.
+      additionalProperties:
+        $ref: '#/components/schemas/Cell'
+      example:
+        c0: ••••
+        c1: Hot
+    PreviewRows:
+      type: array
+      items:
+        $ref: '#/components/schemas/PreviewRow'
+      maxItems: 100
+      description: One preview page, with personal values masked.
+      example: &id015
+      - c0: ••••
+        c1: Hot
+    Preview:
+      type: object
+      description: A masked preview of original data; no AI service is involved.
+      properties:
+        columns:
+          $ref: '#/components/schemas/PreviewColumns'
+        rows:
+          $ref: '#/components/schemas/PreviewRows'
+        total:
+          $ref: '#/components/schemas/Count'
+        offset:
+          $ref: '#/components/schemas/Offset'
+      required:
+      - columns
+      - rows
+      - total
+      - offset
+      additionalProperties: false
+      example:
+        columns: *id014
+        rows: *id015
+        total: 4628
+        offset: 0
+    QueryResult:
+      type: object
+      description: Values returned by validated SQL execution in the isolated worker.
+      properties: &id016
+        columns:
+          $ref: '#/components/schemas/Strings'
+        rows:
+          $ref: '#/components/schemas/ResultRows'
+        truncated:
+          $ref: '#/components/schemas/Boolean'
+        elapsedMs:
+          $ref: '#/components/schemas/Count'
+      required: &id017
+      - columns
+      - rows
+      - truncated
+      - elapsedMs
+      additionalProperties: false
+      example:
+        columns:
+        - region
+        - records
+        rows:
+        - - west
+          - 240
+        - - east
+          - 160
+        truncated: false
+        elapsedMs: 90
+    NullableResult:
+      type: object
+      description: Values returned by validated SQL execution in the isolated worker.
+      properties: *id016
+      required: *id017
+      additionalProperties: false
+      example: null
+      nullable: true
+    Answer:
+      type: object
+      description: An executed answer or clarification, persisted for follow-up questions
+        and optional pinning.
+      properties:
+        id:
+          $ref: '#/components/schemas/ResourceId'
+        question:
+          $ref: '#/components/schemas/Question'
+        kind:
+          $ref: '#/components/schemas/AnswerKind'
+        title:
+          $ref: '#/components/schemas/Text'
+        summary:
+          $ref: '#/components/schemas/Text'
+        choices:
+          $ref: '#/components/schemas/Strings'
+        sql:
+          $ref: '#/components/schemas/NullableSql'
+        result:
+          $ref: '#/components/schemas/NullableResult'
+        messages:
+          $ref: '#/components/schemas/A2uiMessages'
+        pinned:
+          $ref: '#/components/schemas/Boolean'
+        attempts:
+          $ref: '#/components/schemas/AttemptCount'
+        plan:
+          $ref: '#/components/schemas/Text'
+        createdAt:
+          $ref: '#/components/schemas/CreatedAt'
+      required:
+      - id
+      - question
+      - kind
+      - title
+      - summary
+      - choices
+      - sql
+      - result
+      - messages
+      - pinned
+      - attempts
+      - plan
+      - createdAt
+      additionalProperties: false
+      example: &id018
+        id: 8c6bc148-166a-4cdd-b3d8-21609201b05f
+        question: How many records are in this dataset?
+        kind: answer
+        title: Records
+        summary: 'Records: 4,628.'
+        choices: []
+        sql: SELECT COUNT(*) AS records FROM dataset
+        result:
+          columns:
+          - records
+          rows:
+          - - 4628
+          truncated: false
+          elapsedMs: 90
+        messages: *id009
+        pinned: false
+        attempts: 1
+        plan: Count all records.
+        createdAt: '2026-09-08T18:00:00+00:00'
+    Answers:
+      type: array
+      items:
+        $ref: '#/components/schemas/Answer'
+      maxItems: 10000
+      description: Conversation answers in creation order.
+      example:
+      - *id018
+    WorkspaceStatus:
+      type: object
+      description: Workspace availability. aiConfigured reports key presence, not
+        account credit availability.
+      properties:
+        authenticated:
+          $ref: '#/components/schemas/Boolean'
+        passwordRequired:
+          $ref: '#/components/schemas/Boolean'
+        aiConfigured:
+          $ref: '#/components/schemas/Boolean'
+        model:
+          $ref: '#/components/schemas/ShortText'
+        maxUploadBytes:
+          $ref: '#/components/schemas/Count'
+        localMode:
+          $ref: '#/components/schemas/Boolean'
+      required:
+      - authenticated
+      - passwordRequired
+      - aiConfigured
+      - model
+      - maxUploadBytes
+      - localMode
+      additionalProperties: false
+      example:
+        authenticated: true
+        passwordRequired: false
+        aiConfigured: true
+        model: gpt-5.6-sol
+        maxUploadBytes: 104857600
+        localMode: true
+    SessionResult:
+      type: object
+      description: Whether the workspace session is authenticated.
+      properties:
+        authenticated:
+          $ref: '#/components/schemas/Boolean'
+      required:
+      - authenticated
+      additionalProperties: false
+      example:
+        authenticated: true
+    LoginRequest:
+      type: object
+      description: Authenticate using the shared workspace password.
+      properties:
+        password:
+          $ref: '#/components/schemas/Password'
+      required:
+      - password
+      additionalProperties: false
+      example:
+        password: a-long-random-workspace-password
+    ChatRequest:
+      type: object
+      description: Ask an aggregate question about the selected dataset.
+      properties:
+        question:
+          $ref: '#/components/schemas/Question'
+      required:
+      - question
+      additionalProperties: false
+      example:
+        question: How many records are in this dataset?
+    PinRequest:
+      type: object
+      description: Save or unsave an existing answer. pinned defaults to true.
+      properties:
+        answerId:
+          $ref: '#/components/schemas/ResourceId'
+        pinned:
+          $ref: '#/components/schemas/Boolean'
+      required:
+      - answerId
+      additionalProperties: false
+      example:
+        answerId: 8c6bc148-166a-4cdd-b3d8-21609201b05f
+        pinned: true
+    PinResult:
+      type: object
+      description: The persisted pin state.
+      properties:
+        answerId:
+          $ref: '#/components/schemas/ResourceId'
+        pinned:
+          $ref: '#/components/schemas/Boolean'
+      required:
+      - answerId
+      - pinned
+      additionalProperties: false
+      example:
+        answerId: 8c6bc148-166a-4cdd-b3d8-21609201b05f
+        pinned: true
+    UploadRequest:
+      type: object
+      description: Multipart upload. Omit sheetName to import the first XLSX worksheet.
+      properties:
+        file:
+          $ref: '#/components/schemas/File'
+        sheetName:
+          $ref: '#/components/schemas/ShortText'
+      required:
+      - file
+      additionalProperties: false
+      example:
+        file: (binary CSV content)
+        sheetName: Users
+    ErrorCode:
+      type: string
+      description: Stable error classification.
+      example: INVALID_REQUEST
+      enum:
+      - INVALID_REQUEST
+      - UNAUTHORIZED
+      - NOT_FOUND
+      - INTERNAL_ERROR
+      - SERVICE_UNAVAILABLE
+      - ORIGIN_REJECTED
+      - HOST_REJECTED
+      - FILE_TOO_LARGE
+      - IMPORT_BUSY
+      - CHAT_BUSY
+    Error:
+      type: object
+      description: A standardized error without raw source values or provider credentials.
+      properties:
+        code:
+          $ref: '#/components/schemas/ErrorCode'
+        message:
+          $ref: '#/components/schemas/Text'
+        requestId:
+          $ref: '#/components/schemas/Text'
+      required:
+      - code
+      - message
+      - requestId
+      additionalProperties: false
+      example: &id019
+        code: INVALID_REQUEST
+        message: Choose a valid dataset.
+        requestId: 8c6bc148-166a-4cdd-b3d8-21609201b05f
+    ErrorResponse:
+      type: object
+      description: Error envelope used by all API operations.
+      properties:
+        error:
+          $ref: '#/components/schemas/Error'
+      required:
+      - error
+      additionalProperties: false
+      example:
+        error: *id019
