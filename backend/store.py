@@ -1,10 +1,15 @@
 """Workspace metadata is separate from immutable dataset databases."""
 import json
 import sqlite3
+from contextlib import contextmanager
 from pathlib import Path
 
 
 class Store:
+    @contextmanager
+    def materialize(self,profile):
+        yield profile
+
     def __init__(self, root):
         self.root=Path(root)
         self.root.mkdir(parents=True,exist_ok=True,mode=0o700)

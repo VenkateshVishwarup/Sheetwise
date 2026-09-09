@@ -1,0 +1,8 @@
+.env
+.env.*
+.data
+.venv
+.git
+node_modules
+tests
+*.tsbuildinfo

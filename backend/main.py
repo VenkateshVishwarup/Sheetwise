@@ -39,6 +39,12 @@ class PinRequest(BaseModel):
     pinned: bool=True
 
 
+class CloudImportRequest(BaseModel):
+    pathname: str=Field(min_length=48,max_length=49,pattern=r'^uploads/[0-9a-f-]{36}\.(csv|xlsx)$')
+    filename: str=Field(min_length=1,max_length=160,pattern=r'(?i)^.+\.(csv|xlsx)$')
+    sheetName: str|None=Field(default=None,max_length=160)
+
+
 def error(status,code,message):
     return JSONResponse({'error':{'code':code,'message':message,'requestId':str(uuid.uuid4())}},status_code=status)
 
@@ -59,7 +65,12 @@ def create_app(data_dir=None, local_mode=None):
     local_mode=(os.getenv('APP_HOST','127.0.0.1') in ('localhost','127.0.0.1','::1')) if local_mode is None else local_mode
     if not password and not local_mode:
         raise ValueError('WORKSPACE_PASSWORD is required for non-loopback deployment.')
-    store=Store(root)
+    cloud=os.getenv('STORAGE_MODE')=='blob'
+    if cloud:
+        from .cloud_store import CloudStore
+        store=CloudStore(root)
+    else:
+        store=Store(root)
     sessions=Sessions(root,password)
     app=FastAPI(title='Sheetwise API',version='1.0.0',docs_url=None,redoc_url=None,openapi_url=None)
     app.state.store=store
@@ -124,7 +135,7 @@ def create_app(data_dir=None, local_mode=None):
 
     @app.get('/api/status',operation_id='getWorkspaceStatus')
     def status(request:Request):
-        return {'authenticated':not password or sessions.valid(request.cookies.get('sheetwise_session')),'passwordRequired':bool(password),'aiConfigured':configured(),'model':model_name(),'maxUploadBytes':MAX_BYTES,'localMode':local_mode}
+        return {'authenticated':not password or sessions.valid(request.cookies.get('sheetwise_session')),'passwordRequired':bool(password),'aiConfigured':configured(),'model':model_name(),'maxUploadBytes':MAX_BYTES,'localMode':local_mode,'directUploads':cloud}
 
     @app.post('/api/session',operation_id='createWorkspaceSession')
     def login(body:LoginRequest,request:Request):
@@ -190,13 +201,47 @@ def create_app(data_dir=None, local_mode=None):
         finally:
             upload_gate.release()
 
+    @app.post('/api/imports',status_code=201,operation_id='importCloudUpload')
+    def import_cloud(body:CloudImportRequest):
+        if not cloud:
+            raise ValueError('Direct uploads are only enabled in the cloud workspace.')
+        upload_id=str(uuid.UUID(Path(body.pathname).stem))
+        try:
+            return public_profile(store.dataset(upload_id))
+        except KeyError:
+            pass
+        if not upload_gate.acquire(blocking=False):
+            return error(429,'IMPORT_BUSY','Another file is being imported. Try again shortly.')
+        try:
+            with tempfile.TemporaryDirectory(dir=root) as directory:
+                path=Path(directory)/'source.upload'
+                # The SDK resolves this validated pathname inside our private store, never an arbitrary URL.
+                metadata=store.client.head(body.pathname)
+                if metadata.size>MAX_BYTES:
+                    raise ValueError('Files must be 100 MB or smaller.')
+                store.client.download_file(body.pathname,path,access='private',timeout=90)
+                if path.stat().st_size>MAX_BYTES:
+                    raise ValueError('Files must be 100 MB or smaller.')
+                profile=ingest_file(path,body.filename,Path(directory),body.sheetName)
+                profile['id']=upload_id
+                profile=store.save_dataset(profile)
+                try:
+                    store.client.delete(body.pathname)
+                except Exception:
+                    # A cleanup outage must not turn a committed import into a failed request.
+                    pass
+                return public_profile(profile)
+        finally:
+            upload_gate.release()
+
     @app.get('/api/datasets/{dataset_id}',operation_id='getDataset')
     def get_dataset(dataset_id:str):
         return public_profile(profile_for(dataset_id))
 
     @app.get('/api/datasets/{dataset_id}/preview',operation_id='getDatasetPreview')
     def preview(dataset_id:str,offset:int=Query(0,ge=0),limit:int=Query(25,ge=1,le=100)):
-        return preview_rows(profile_for(dataset_id),offset,limit)
+        with store.materialize(profile_for(dataset_id)) as p:
+            return preview_rows(p,offset,limit)
 
     @app.get('/api/datasets/{dataset_id}/answers',operation_id='listAnswers')
     def answers(dataset_id:str):
@@ -211,7 +256,8 @@ def create_app(data_dir=None, local_mode=None):
         if not chat_gate.acquire(blocking=False):
             return error(429,'CHAT_BUSY','Two analyses are already running. Try again shortly.')
         try:
-            answer=answer_question(p,body.question,store.answers(dataset_id))
+            with store.materialize(p) as ready:
+                answer=answer_question(ready,body.question,store.answers(dataset_id))
             store.save_answer(dataset_id,answer)
             return answer
         finally:

@@ -72,3 +72,7 @@
 - The supplied CSV reconciles to 4,628 rows and 134 source columns. Live model-generated queries returned exactly 4,628 total records and conversion counts of 193 true, 306 false and 4,129 unknown. Only metadata and question context were sent to the provider.
 - The official A2UI renderer is client-only; component tests use a DOM environment rather than unsupported server rendering.
 - No browser interaction testing or remote deployment was performed. Local credentials and dataset files remain outside version control.
+
+## Vercel adaptation — September 9
+
+The user requested deployment to their Vercel account. Preserve CSV/XLSX up to 100 MB and the shared password by adding authenticated direct-to-private-Blob uploads, immutable Blob metadata and database persistence, stable cloud session signing, a Python function and a Web Request upload-token function. Keep the existing local SQLite/DuckDB path available. Verify fresh-instance reads, authentication, failed-commit retry, source cleanup and actual live deployment. No local customer dataset or credentials are committed.

@@ -11,7 +11,7 @@
     "start": ".venv/bin/python -m backend",
     "lint": "oxlint",
     "format": "oxfmt",
-    "test": "tsx --test tests/a2ui.test.ts",
+    "test": "tsx --test tests/*.test.ts",
     "typecheck": "tsc --noEmit",
     "dev:all": ".venv/bin/python scripts/dev.py"
   },
@@ -20,6 +20,7 @@
     "@a2ui/web_core": "^0.10.7",
     "@base-ui/react": "1.7.0",
     "@shadcn/react": "0.3.0",
+    "@vercel/blob": "^2.8.0",
     "class-variance-authority": "0.7.1",
     "clsx": "2.1.1",
     "cmdk": "1.1.1",

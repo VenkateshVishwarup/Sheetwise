@@ -1,0 +1,15 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": null,
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist/client",
+  "installCommand": "npm ci",
+  "functions": {
+    "api/index.py": { "maxDuration": 300, "excludeFiles": "{node_modules/**,.venv/**,.data/**,.git/**,tests/**}" },
+    "api/blob-upload.ts": { "maxDuration": 30 }
+  },
+  "rewrites": [
+    { "source": "/api/blob-upload", "destination": "/api/blob-upload" },
+    { "source": "/api/:path*", "destination": "/api/index" }
+  ]
+}

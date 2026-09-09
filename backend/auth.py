@@ -3,11 +3,18 @@ import hashlib
 import hmac
 import secrets
 import time
+import os
 
 
 class Sessions:
     def __init__(self, root, password):
         self.password=password
+        if os.getenv('STORAGE_MODE')=='blob':
+            if not password:
+                raise ValueError('A workspace password is required for cloud storage.')
+            self.secret=hashlib.sha256(('sheetwise-session-v1:'+password).encode()).digest()
+            self.attempts={}
+            return
         secret_file=root/'session.key'
         if not secret_file.exists():
             secret_file.write_bytes(secrets.token_bytes(32))

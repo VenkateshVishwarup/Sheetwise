@@ -345,6 +345,145 @@ paths:
           multipart/form-data:
             schema:
               $ref: '#/components/schemas/UploadRequest'
+  /api/imports:
+    post:
+      operationId: importCloudUpload
+      summary: Import a completed private cloud upload.
+      description: Import a completed private cloud upload. All records belong to
+        the single authenticated internal workspace.
+      responses:
+        '201':
+          description: Created successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Dataset'
+        '400':
+          description: Bad Request — invalid fields, unsupported file or rejected
+            query.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized — a valid workspace session is required.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden — untrusted host or cross-origin write.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Not Found — dataset or answer does not exist.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '413':
+          description: Payload Too Large — request or file exceeds its limit.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Too Many Requests — import or analysis capacity is busy.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal Error — the request could not be completed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Service Unavailable — AI configuration, credits or provider
+            availability prevents analysis.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CloudImportRequest'
+  /api/blob-upload:
+    post:
+      operationId: authorizeCloudUpload
+      summary: Authorize a private direct upload or acknowledge a signed completion
+        callback.
+      description: Authorize a private direct upload or acknowledge a signed completion
+        callback. All records belong to the single authenticated internal workspace.
+      responses:
+        '200':
+          description: Request completed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BlobUploadResponse'
+        '400':
+          description: Bad Request — invalid fields, unsupported file or rejected
+            query.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized — a valid workspace session is required.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden — untrusted host or cross-origin write.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Not Found — dataset or answer does not exist.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '413':
+          description: Payload Too Large — request or file exceeds its limit.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Too Many Requests — import or analysis capacity is busy.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal Error — the request could not be completed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Service Unavailable — AI configuration, credits or provider
+            availability prevents analysis.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BlobUploadRequest'
   /api/demo:
     post:
       operationId: createDemoDataset
@@ -1801,6 +1940,8 @@ components:
           $ref: '#/components/schemas/Count'
         localMode:
           $ref: '#/components/schemas/Boolean'
+        directUploads:
+          $ref: '#/components/schemas/Boolean'
       required:
       - authenticated
       - passwordRequired
@@ -1808,6 +1949,7 @@ components:
       - model
       - maxUploadBytes
       - localMode
+      - directUploads
       additionalProperties: false
       example:
         authenticated: true
@@ -1816,6 +1958,7 @@ components:
         model: gpt-5.6-sol
         maxUploadBytes: 104857600
         localMode: true
+        directUploads: false
     SessionResult:
       type: object
       description: Whether the workspace session is authenticated.
@@ -1937,3 +2080,136 @@ components:
       additionalProperties: false
       example:
         error: *id019
+    UploadPath:
+      type: string
+      description: An immutable upload pathname inside the private workspace Blob
+        store.
+      example: uploads/8c6bc148-166a-4cdd-b3d8-21609201b05f.csv
+      minLength: 48
+      maxLength: 49
+      pattern: ^uploads/[0-9a-f-]{36}\.(csv|xlsx)$
+    UploadFilename:
+      type: string
+      description: Original CSV/XLSX filename; used to select the parser.
+      example: leads.csv
+      minLength: 1
+      maxLength: 160
+      pattern: ^.+\.([cC][sS][vV]|[xX][lL][sS][xX])$
+    OptionalSheet:
+      type: string
+      description: Optional worksheet; null selects the first worksheet.
+      example: null
+      nullable: true
+      maxLength: 160
+    CloudImportRequest:
+      type: object
+      description: Import a completed direct upload, persist its analytical database,
+        and remove the source after successful commit. Retry with the same pathname
+        after a transient failure.
+      properties:
+        pathname:
+          $ref: '#/components/schemas/UploadPath'
+        filename:
+          $ref: '#/components/schemas/UploadFilename'
+        sheetName:
+          $ref: '#/components/schemas/OptionalSheet'
+      required:
+      - pathname
+      - filename
+      additionalProperties: false
+      example:
+        pathname: uploads/8c6bc148-166a-4cdd-b3d8-21609201b05f.csv
+        filename: leads.csv
+        sheetName: null
+    BlobEventType:
+      type: string
+      description: Official Blob SDK event type.
+      example: blob.generate-client-token
+      enum:
+      - blob.generate-client-token
+      - blob.upload-completed
+    UploadToken:
+      type: string
+      description: A server-issued token restricted to one private upload path and
+        100 MB.
+      example: (short-lived upload token)
+      minLength: 1
+      maxLength: 16000
+    BlobFile:
+      type: object
+      description: Provider metadata for a completed private upload.
+      properties:
+        url:
+          $ref: '#/components/schemas/Text'
+        pathname:
+          $ref: '#/components/schemas/Text'
+        contentType:
+          $ref: '#/components/schemas/Text'
+        contentDisposition:
+          $ref: '#/components/schemas/Text'
+        downloadUrl:
+          $ref: '#/components/schemas/Text'
+        etag:
+          $ref: '#/components/schemas/Text'
+      required:
+      - url
+      - pathname
+      - contentType
+      additionalProperties: false
+      example:
+        url: https://store.private.blob.vercel-storage.com/uploads/example.csv
+        pathname: uploads/example.csv
+        contentType: application/octet-stream
+    BlobUploadPayload:
+      type: object
+      description: SDK token request or signed provider completion payload; the fields
+        depend on the event.
+      properties:
+        pathname:
+          $ref: '#/components/schemas/UploadPath'
+        clientPayload:
+          $ref: '#/components/schemas/NullableText'
+        multipart:
+          $ref: '#/components/schemas/Boolean'
+        blob:
+          $ref: '#/components/schemas/BlobFile'
+        tokenPayload:
+          $ref: '#/components/schemas/NullableText'
+      additionalProperties: false
+      example: &id020
+        pathname: uploads/8c6bc148-166a-4cdd-b3d8-21609201b05f.csv
+        clientPayload: null
+        multipart: true
+    BlobUploadRequest:
+      type: object
+      description: Official Blob upload handshake. Token generation requires a workspace
+        session. Completion callbacks are verified by the Blob SDK.
+      properties:
+        type:
+          $ref: '#/components/schemas/BlobEventType'
+        payload:
+          $ref: '#/components/schemas/BlobUploadPayload'
+      required:
+      - type
+      - payload
+      additionalProperties: false
+      example:
+        type: blob.generate-client-token
+        payload: *id020
+    BlobUploadResponse:
+      type: object
+      description: Upload authorization or completion acknowledgment returned by the
+        official SDK.
+      properties:
+        type:
+          $ref: '#/components/schemas/BlobEventType'
+        clientToken:
+          $ref: '#/components/schemas/UploadToken'
+        response:
+          $ref: '#/components/schemas/ShortText'
+      required:
+      - type
+      additionalProperties: false
+      example:
+        type: blob.generate-client-token
+        clientToken: (short-lived upload token)

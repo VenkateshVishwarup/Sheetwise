@@ -80,7 +80,7 @@ schemas['NullableResult']={**schemas['QueryResult'],'nullable':True,'example':No
 answer_example={'id':uid,'question':'How many records are in this dataset?','kind':'answer','title':'Records','summary':'Records: 4,628.','choices':[],'sql':'SELECT COUNT(*) AS records FROM dataset','result':{'columns':['records'],'rows':[[4628]],'truncated':False,'elapsedMs':90},'messages':schemas['A2uiMessages']['example'],'pinned':False,'attempts':1,'plan':'Count all records.','createdAt':schemas['CreatedAt']['example']}
 obj('Answer',{'id':'ResourceId','question':'Question','kind':'AnswerKind','title':'Text','summary':'Text','choices':'Strings','sql':'NullableSql','result':'NullableResult','messages':'A2uiMessages','pinned':'Boolean','attempts':'AttemptCount','plan':'Text','createdAt':'CreatedAt'},answer_example,'An executed answer or clarification, persisted for follow-up questions and optional pinning.')
 array('Answers','Answer',[answer_example],'Conversation answers in creation order.',10000)
-obj('WorkspaceStatus',{'authenticated':'Boolean','passwordRequired':'Boolean','aiConfigured':'Boolean','model':'ShortText','maxUploadBytes':'Count','localMode':'Boolean'},{'authenticated':True,'passwordRequired':False,'aiConfigured':True,'model':'gpt-5.6-sol','maxUploadBytes':104857600,'localMode':True},'Workspace availability. aiConfigured reports key presence, not account credit availability.')
+obj('WorkspaceStatus',{'authenticated':'Boolean','passwordRequired':'Boolean','aiConfigured':'Boolean','model':'ShortText','maxUploadBytes':'Count','localMode':'Boolean','directUploads':'Boolean'},{'authenticated':True,'passwordRequired':False,'aiConfigured':True,'model':'gpt-5.6-sol','maxUploadBytes':104857600,'localMode':True,'directUploads':False},'Workspace availability. aiConfigured reports key presence, not account credit availability.')
 obj('SessionResult',{'authenticated':'Boolean'},{'authenticated':True},'Whether the workspace session is authenticated.')
 obj('LoginRequest',{'password':'Password'},{'password':schemas['Password']['example']},'Authenticate using the shared workspace password.')
 obj('ChatRequest',{'question':'Question'},{'question':schemas['Question']['example']},'Ask an aggregate question about the selected dataset.')
@@ -94,6 +94,18 @@ obj('ErrorResponse',{'error':'Error'}, {'error':schemas['Error']['example']},'Er
 for component in schemas.values():
     if component.get('required') == []:
         component.pop('required')
+
+
+scalar('UploadPath','string','uploads/'+uid+'.csv','An immutable upload pathname inside the private workspace Blob store.',minLength=48,maxLength=49,pattern=r'^uploads/[0-9a-f-]{36}\.(csv|xlsx)$')
+scalar('UploadFilename','string','leads.csv','Original CSV/XLSX filename; used to select the parser.',minLength=1,maxLength=160,pattern=r'^.+\.([cC][sS][vV]|[xX][lL][sS][xX])$')
+scalar('OptionalSheet','string',None,'Optional worksheet; null selects the first worksheet.',nullable=True,maxLength=160)
+obj('CloudImportRequest',{'pathname':'UploadPath','filename':'UploadFilename','sheetName':'OptionalSheet'},{'pathname':'uploads/'+uid+'.csv','filename':'leads.csv','sheetName':None},'Import a completed direct upload, persist its analytical database, and remove the source after successful commit. Retry with the same pathname after a transient failure.',['pathname','filename'])
+scalar('BlobEventType','string','blob.generate-client-token','Official Blob SDK event type.',enum=['blob.generate-client-token','blob.upload-completed'])
+scalar('UploadToken','string','(short-lived upload token)','A server-issued token restricted to one private upload path and 100 MB.',minLength=1,maxLength=16000)
+obj('BlobFile',{'url':'Text','pathname':'Text','contentType':'Text','contentDisposition':'Text','downloadUrl':'Text','etag':'Text'},{'url':'https://store.private.blob.vercel-storage.com/uploads/example.csv','pathname':'uploads/example.csv','contentType':'application/octet-stream'},'Provider metadata for a completed private upload.',['url','pathname','contentType'])
+obj('BlobUploadPayload',{'pathname':'UploadPath','clientPayload':'NullableText','multipart':'Boolean','blob':'BlobFile','tokenPayload':'NullableText'},{'pathname':'uploads/'+uid+'.csv','clientPayload':None,'multipart':True},'SDK token request or signed provider completion payload; the fields depend on the event.',[])
+obj('BlobUploadRequest',{'type':'BlobEventType','payload':'BlobUploadPayload'},{'type':'blob.generate-client-token','payload':schemas['BlobUploadPayload']['example']},'Official Blob upload handshake. Token generation requires a workspace session. Completion callbacks are verified by the Blob SDK.')
+obj('BlobUploadResponse',{'type':'BlobEventType','clientToken':'UploadToken','response':'ShortText'},{'type':'blob.generate-client-token','clientToken':'(short-lived upload token)'},'Upload authorization or completion acknowledgment returned by the official SDK.',['type'])
 
 paths={}
 errors={'400':'Bad Request — invalid fields, unsupported file or rejected query.','401':'Unauthorized — a valid workspace session is required.','403':'Forbidden — untrusted host or cross-origin write.','404':'Not Found — dataset or answer does not exist.','413':'Payload Too Large — request or file exceeds its limit.','429':'Too Many Requests — import or analysis capacity is busy.','500':'Internal Error — the request could not be completed.','503':'Service Unavailable — AI configuration, credits or provider availability prevents analysis.'}
@@ -109,6 +121,8 @@ endpoint('/api/session','post','createWorkspaceSession','Create an HttpOnly work
 endpoint('/api/session','delete','deleteWorkspaceSession','Clear this browser’s workspace session cookie.','SessionResult',public=True)
 endpoint('/api/datasets','get','listDatasets','List uploaded datasets.','DatasetList')
 endpoint('/api/datasets','post','uploadDataset','Import and profile a CSV or XLSX file.','Dataset','UploadRequest','201',multipart=True)
+endpoint('/api/imports','post','importCloudUpload','Import a completed private cloud upload.','Dataset','CloudImportRequest','201')
+endpoint('/api/blob-upload','post','authorizeCloudUpload','Authorize a private direct upload or acknowledge a signed completion callback.','BlobUploadResponse','BlobUploadRequest')
 endpoint('/api/demo','post','createDemoDataset','Create a clearly labeled synthetic demonstration dataset.','Dataset',success='201')
 endpoint('/api/datasets/{dataset_id}','get','getDataset','Read a dataset profile and its default dashboard.','Dataset')
 endpoint('/api/datasets/{dataset_id}/preview','get','getDatasetPreview','Preview masked original values.','Preview',params=[{'name':name,'in':'query','description':schemas[kind]['description'],'schema':ref(kind),'example':schemas[kind]['example']} for name,kind in [('offset','Offset'),('limit','PreviewLimit')]])
@@ -120,6 +134,9 @@ endpoint('/api/openapi.yaml','get','getApiSpecification','Download this API cont
 paths['/api/openapi.yaml']['get']['responses']['200']['content']={'application/yaml':{'schema':ref('Text')}}
 paths['/api/session']['post']['responses']['200']['headers']={'Set-Cookie':{'description':'HttpOnly, SameSite=Strict session cookie; Secure when COOKIE_SECURE=true.','schema':ref('Text'),'example':'sheetwise_session=(signed session); HttpOnly; SameSite=Strict; Path=/'}}
 spec={'openapi':'3.0.3','info':{'title':'Sheetwise API','version':'1.0.0','description':'Private spreadsheet analytics. One shared internal workspace; all analytical database paths remain server-side. Schemas and examples are defined in components.'},'servers':[{'url':'http://127.0.0.1:8000','description':'Local development; use your HTTPS internal origin for deployment.'}],'security':[{'WorkspaceSession':[]}],'paths':paths,'components':{'securitySchemes':{'WorkspaceSession':{'type':'apiKey','in':'cookie','name':'sheetwise_session','description':'Signed workspace session. Loopback-only local mode can omit this cookie.'}},'schemas':schemas}}
+for component in schemas.values():
+    if component.get('required') == []:
+        component.pop('required')
 out=Path(__file__).resolve().parents[1]/'docs/openapi.yaml'
 out.write_text(yaml.safe_dump(spec,sort_keys=False,allow_unicode=True))
 print(f'Generated {len(paths)} paths and {len(schemas)} component schemas.')

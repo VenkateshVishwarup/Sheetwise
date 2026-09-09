@@ -7,3 +7,4 @@ openpyxl==3.1.5
 openai==3.9.0
 PyYAML==6.0.3
 python-dotenv==1.2.3
+vercel==0.10.0

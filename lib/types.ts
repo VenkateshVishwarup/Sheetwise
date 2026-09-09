@@ -16,5 +16,5 @@ export interface Answer {
   id: string; question: string; kind: 'answer'|'clarification'; title: string; summary: string; choices: string[];
   sql: string|null; result: Result|null; messages: unknown[]; pinned: boolean; attempts: number; plan: string; createdAt: string;
 }
-export interface Status { authenticated: boolean; passwordRequired: boolean; aiConfigured: boolean; model: string; localMode: boolean }
+export interface Status { authenticated: boolean; passwordRequired: boolean; aiConfigured: boolean; model: string; localMode: boolean; directUploads?: boolean }
 export interface Preview { columns: Pick<Column,'key'|'name'|'type'|'sensitive'>[]; rows: Record<string,Cell>[]; total: number; offset: number }

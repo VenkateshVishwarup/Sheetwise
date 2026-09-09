@@ -4,7 +4,8 @@ import { FileSpreadsheet, UploadCloud, LoaderCircle, ShieldCheck } from 'lucide-
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { api } from '@/lib/api';
-import type { Dataset } from '@/lib/types';
+import { upload as uploadBlob } from '@vercel/blob/client';
+import type { Dataset, Status } from '@/lib/types';
 
 export function UploadDialog({ open, setOpen, onUploaded }: { open: boolean; setOpen: (v:boolean)=>void; onUploaded:(d:Dataset)=>void }) {
   const [file,setFile]=useState<File|null>(null);
@@ -24,8 +25,17 @@ export function UploadDialog({ open, setOpen, onUploaded }: { open: boolean; set
     if (!file) return;
     setBusy(true);setError('');
     try {
-      const body=new FormData();body.append('file',file);if(sheet.trim())body.append('sheetName',sheet.trim());
-      const dataset=await api<Dataset>('/datasets',{method:'POST',body});
+      const status=await api<Status>('/status');
+      let dataset:Dataset;
+      if(status.directUploads) {
+        const extension=file.name.toLowerCase().endsWith('.xlsx')?'xlsx':'csv';
+        const pathname=`uploads/${crypto.randomUUID()}.${extension}`;
+        await uploadBlob(pathname,file,{access:'private',handleUploadUrl:'/api/blob-upload',multipart:true,contentType:'application/octet-stream'});
+        dataset=await api<Dataset>('/imports',{method:'POST',body:JSON.stringify({pathname,filename:file.name,sheetName:sheet.trim()||null})});
+      } else {
+        const body=new FormData();body.append('file',file);if(sheet.trim())body.append('sheetName',sheet.trim());
+        dataset=await api<Dataset>('/datasets',{method:'POST',body});
+      }
       onUploaded(dataset);setFile(null);setSheet('');setOpen(false);
     } catch(e) { setError((e as Error).message); } finally { setBusy(false); }
   }
@@ -37,7 +47,7 @@ export function UploadDialog({ open, setOpen, onUploaded }: { open: boolean; set
       <UploadCloud size={30}/><strong>{file?file.name:'Drop your spreadsheet here'}</strong><span>{file?`${(file.size/1024/1024).toFixed(1)} MB · Click to change`:'or click to browse your files'}</span><small>CSV or XLSX · Up to 100 MB</small>
     </button>
     {file?.name.toLowerCase().endsWith('.xlsx') && <label className="field-label">Worksheet name <span>(optional)</span><input value={sheet} onChange={e=>setSheet(e.target.value)} placeholder="First worksheet by default" disabled={busy}/></label>}
-    <div className="privacy-note"><ShieldCheck size={17}/><span>Personal values are masked. Secret fields are excluded. Raw rows stay on your app server.</span></div>
+    <div className="privacy-note"><ShieldCheck size={17}/><span>Personal values are masked. Secret fields are excluded from analysis. Uploaded data stays in your private workspace storage.</span></div>
     {error && <p className="error-note" role="alert">{error}</p>}
     <Button className="primary-button wide" disabled={!file||busy} onClick={upload}>{busy?<><LoaderCircle className="spin"/> Reading and profiling your data…</>:<>Create dashboard <span>↗</span></>}</Button>
   </DialogContent></Dialog>;

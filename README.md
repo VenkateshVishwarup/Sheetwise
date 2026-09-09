@@ -32,6 +32,16 @@ npm run build
 
 The Python server then serves both the app and API on port 8000.
 
+## Vercel deployment
+
+The repository includes `vercel.json` for the React client, a Python API function and a direct-upload authorization function. Import `VenkateshVishwarup/Sheetwise`, select the Other framework preset, build with `npm run build`, and use `dist/client` as the output directory. Python is pinned to 3.12.
+
+Connect a **private** Vercel Blob store to the production project. Configure `BLOB_READ_WRITE_TOKEN`, `OPENAI_API_KEY` and `WORKSPACE_PASSWORD` as encrypted server environment variables. Keep them out of Git and never give them a `VITE_` or `NEXT_PUBLIC_` prefix. `OPENAI_MODEL` defaults to `gpt-5.6-sol`. The cloud entry point enables Blob storage, secure cookies and a temporary working directory automatically.
+
+The browser uploads CSV/XLSX files directly into private Blob storage using a session-protected, size-limited, short-lived upload token. This preserves the 100 MB limit without sending file bodies through a Vercel Function. The Python API imports the uploaded object and persists the sanitized analytical database and profile. Profiles, answers and pin events are separate immutable objects; they survive cold starts and concurrent answer saves. Each query downloads its immutable database into an owned temporary directory and removes that copy afterward. Cloud session signatures remain valid across instances.
+
+An imported cloud database is capped at 400 MB. Resource admission and login attempt limits are per instance. Source uploads are deleted after successful import; failed/abandoned uploads and unreferenced database objects from failed commits can remain in private storage and require operator cleanup. Cloud storage usage is subject to the account's Vercel limits. Start with a synthetic demo; local customer datasets are not automatically published.
+
 ## Team deployment
 
 ```sh
@@ -41,7 +51,7 @@ docker compose up --build -d
 
 The container refuses to start without a password. Compose binds to loopback; expose it to your internal team through a private HTTPS reverse proxy and set `COOKIE_SECURE=true`. A named volume preserves datasets, questions and saved insights. This MVP has one shared workspace/password, not separate user roles or customer tenants. Use one Python process per workspace; upload and chat admission limits are process-local.
 
-The approved Python/DuckDB backend requires a conventional server. The built-in Sites Cloudflare runtime cannot host it; no disconnected frontend has been published there. The React client uses the Sites starter and can be served by this container.
+The Docker option uses a conventional server. The built-in Sites Cloudflare runtime cannot host this Python backend; no disconnected frontend has been published there. The React client uses the Sites starter and can be served by this container.
 
 ## What happens to a spreadsheet
 
@@ -74,4 +84,4 @@ Tests cover exact CSV/XLSX import, unknown/boolean handling, phone and secret pr
 
 ## Validation in this workspace
 
-The supplied CSV was imported locally and reconciled to 4,628 records, 134 input columns and `lead.is_converted` counts of 193 true, 306 false and 4,129 unknown. Live OpenAI requests using the configured local key successfully generated SQL for the total count and for conversion status groups; executed results exactly matched these counts. Controlled-provider tests verify the complete planning → repair → SQL → A2UI path. All 33 backend tests and 3 A2UI component tests pass, along with application lint, type checking and the production build. The Docker image builds, and its runtime passed password protection, login, synthetic import, profile and preview checks. No browser interaction testing or remote deployment has been performed.
+The supplied CSV was imported locally and reconciled to 4,628 records, 134 input columns and `lead.is_converted` counts of 193 true, 306 false and 4,129 unknown. Live OpenAI requests using the configured local key successfully generated SQL for the total count and for conversion status groups; executed results exactly matched these counts. Controlled-provider tests verify the complete planning → repair → SQL → A2UI path. The local MVP passed 33 backend tests and 3 A2UI component tests, along with application lint, type checking and the production build. The Docker image builds, and its runtime passed password protection, login, synthetic import, profile and preview checks. No browser interaction testing or remote deployment has been performed.
