@@ -16,6 +16,8 @@ class Store:
         self.path=self.root/'workspace.sqlite'
         with self.connect() as con:
             con.executescript('''
+                CREATE TABLE IF NOT EXISTS evaluations (id TEXT PRIMARY KEY, dataset_id TEXT NOT NULL, result TEXT NOT NULL, created_at TEXT NOT NULL);
+                CREATE INDEX IF NOT EXISTS evaluation_dataset ON evaluations(dataset_id, created_at);
                 CREATE TABLE IF NOT EXISTS datasets (id TEXT PRIMARY KEY, profile TEXT NOT NULL);
                 CREATE TABLE IF NOT EXISTS answers (id TEXT PRIMARY KEY, dataset_id TEXT NOT NULL, answer TEXT NOT NULL, pinned INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL);
                 CREATE INDEX IF NOT EXISTS answer_dataset ON answers(dataset_id, created_at);
@@ -53,3 +55,11 @@ class Store:
             count=con.execute('UPDATE answers SET pinned=? WHERE id=? AND dataset_id=?',(int(pinned),answer_id,dataset_id)).rowcount
         if not count:
             raise KeyError('Answer not found.')
+
+    def save_evaluation(self,dataset_id,result):
+        with self.connect() as con:
+            con.execute('INSERT INTO evaluations VALUES (?,?,?,?)',(result['id'],dataset_id,json.dumps(result,allow_nan=False),result['createdAt']))
+
+    def evaluations(self,dataset_id):
+        with self.connect() as con:
+            return [json.loads(r[0]) for r in con.execute('SELECT result FROM evaluations WHERE dataset_id=? ORDER BY created_at DESC LIMIT 20',(dataset_id,))]

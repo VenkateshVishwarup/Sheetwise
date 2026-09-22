@@ -8,6 +8,9 @@ import threading
 import uuid
 from pathlib import Path
 from urllib.parse import urlparse
+from typing import Literal
+from pydantic import ConfigDict
+from .evaluation import run_evaluation
 
 from fastapi import FastAPI, File, Form, Query, Request, UploadFile
 from fastapi.exceptions import RequestValidationError
@@ -45,6 +48,18 @@ class CloudImportRequest(BaseModel):
     sheetName: str|None=Field(default=None,max_length=160)
 
 
+class EvaluationRequest(BaseModel):
+    model_config=ConfigDict(extra='forbid')
+    targetKey: str=Field(pattern=r'^c[0-9]{1,3}$',min_length=2,max_length=4)
+    featureKeys: list[str]=Field(min_length=1,max_length=12)
+    purpose: Literal['snapshot','future']='snapshot'
+    positiveMeaning: str=Field(min_length=3,max_length=200)
+    negativeMeaning: str=Field(min_length=3,max_length=200)
+    labelsConfirmed: bool=False
+    featuresConfirmed: bool=False
+    categoriesReviewed: bool=False
+
+
 def error(status,code,message):
     return JSONResponse({'error':{'code':code,'message':message,'requestId':str(uuid.uuid4())}},status_code=status)
 
@@ -72,11 +87,12 @@ def create_app(data_dir=None, local_mode=None):
     else:
         store=Store(root)
     sessions=Sessions(root,password)
-    app=FastAPI(title='Sheetwise API',version='1.0.0',docs_url=None,redoc_url=None,openapi_url=None)
+    app=FastAPI(title='Sheetwise API',version='2.0.0',docs_url=None,redoc_url=None,openapi_url=None)
     app.state.store=store
     app.add_middleware(RequestBounds)
     upload_gate=threading.BoundedSemaphore(1)
     chat_gate=threading.BoundedSemaphore(2)
+    evaluation_gate=threading.BoundedSemaphore(1)
 
     @app.middleware('http')
     async def workspace_boundary(request:Request,call_next):
@@ -273,6 +289,32 @@ def create_app(data_dir=None, local_mode=None):
         profile_for(dataset_id)
         store.pin(dataset_id,body.answerId,body.pinned)
         return {'answerId':body.answerId,'pinned':body.pinned}
+
+    def evaluate_request(dataset_id,body,execute):
+        profile=profile_for(dataset_id)
+        if not evaluation_gate.acquire(blocking=False):
+            return error(429,'EVALUATION_BUSY','An evaluation is already running. Try again shortly.')
+        try:
+            with store.materialize(profile) as ready:
+                result=run_evaluation(ready,body.model_dump(),evaluate=execute)
+            if execute:
+                store.save_evaluation(dataset_id,result)
+            return result
+        finally:
+            evaluation_gate.release()
+
+    @app.post('/api/datasets/{dataset_id}/readiness',operation_id='checkOutcomeReadiness')
+    def readiness(dataset_id:str,body:EvaluationRequest):
+        return evaluate_request(dataset_id,body,False)
+
+    @app.post('/api/datasets/{dataset_id}/evaluations',status_code=201,operation_id='evaluateRecordedOutcome')
+    def evaluate(dataset_id:str,body:EvaluationRequest):
+        return evaluate_request(dataset_id,body,True)
+
+    @app.get('/api/datasets/{dataset_id}/evaluations',operation_id='listOutcomeEvaluations')
+    def evaluations(dataset_id:str):
+        profile_for(dataset_id)
+        return store.evaluations(dataset_id)
 
     @app.get('/api/openapi.yaml',operation_id='getApiSpecification')
     def specification():

@@ -18,3 +18,17 @@ export interface Answer {
 }
 export interface Status { authenticated: boolean; passwordRequired: boolean; aiConfigured: boolean; model: string; localMode: boolean; directUploads?: boolean }
 export interface Preview { columns: Pick<Column,'key'|'name'|'type'|'sensitive'>[]; rows: Record<string,Cell>[]; total: number; offset: number }
+export interface EvaluationDefinition {
+  targetKey: string; featureKeys: string[]; purpose: 'snapshot'|'future';
+  positiveMeaning: string; negativeMeaning: string; labelsConfirmed: boolean; featuresConfirmed: boolean; categoriesReviewed: boolean;
+}
+export interface Readiness {
+  ready: boolean; totalRows: number; knownRows: number; unknownRows: number; positiveRows: number; negativeRows: number; targetName: string;
+  features: {key:string; name:string; knownCoverage:number; unknownCoverage:number|null; distinctKnown:number; collisionGroups:number}[];
+  issues: {code:string; severity:'blocker'|'warning'; message:string; columnKey:string|null}[];
+}
+export interface EvaluationRun {
+  id:string; datasetId:string; createdAt:string; definition:EvaluationDefinition; readiness:Readiness;
+  trainRows:number; testRows:number; testPositiveRows:number; seed:number; algorithmVersion:string;
+  models:{name:string; rocAuc:number; averagePrecision:number; brier:number}[]; limitations:string[];
+}

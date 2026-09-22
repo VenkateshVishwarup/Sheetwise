@@ -85,3 +85,10 @@ class CloudStore:
     def pin(self,dataset_id,answer_id,pinned):
         self._read(f'answers/{dataset_id}/{answer_id}.json')
         self._write(f'pins/{dataset_id}/{time.time_ns():020d}-{uuid.uuid4()}.json',{'answerId':answer_id,'pinned':pinned})
+
+    def save_evaluation(self,dataset_id,result):
+        self._write(f'evaluations/{dataset_id}/{result["createdAt"]}--{result["id"]}.json',result)
+
+    def evaluations(self,dataset_id):
+        paths=sorted(self._paths(f'evaluations/{dataset_id}/'),reverse=True)[:20]
+        return [self._read(path) for path in paths]
