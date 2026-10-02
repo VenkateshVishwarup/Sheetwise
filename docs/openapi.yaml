@@ -67,8 +67,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '503':
-          description: Service Unavailable — AI configuration, credits or provider
-            availability prevents analysis.
+          description: Service Unavailable — AI or upload storage configuration, credits
+            or provider availability prevents the request.
           content:
             application/json:
               schema:
@@ -138,8 +138,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '503':
-          description: Service Unavailable — AI configuration, credits or provider
-            availability prevents analysis.
+          description: Service Unavailable — AI or upload storage configuration, credits
+            or provider availability prevents the request.
           content:
             application/json:
               schema:
@@ -207,8 +207,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '503':
-          description: Service Unavailable — AI configuration, credits or provider
-            availability prevents analysis.
+          description: Service Unavailable — AI or upload storage configuration, credits
+            or provider availability prevents the request.
           content:
             application/json:
               schema:
@@ -271,8 +271,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '503':
-          description: Service Unavailable — AI configuration, credits or provider
-            availability prevents analysis.
+          description: Service Unavailable — AI or upload storage configuration, credits
+            or provider availability prevents the request.
           content:
             application/json:
               schema:
@@ -333,8 +333,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '503':
-          description: Service Unavailable — AI configuration, credits or provider
-            availability prevents analysis.
+          description: Service Unavailable — AI or upload storage configuration, credits
+            or provider availability prevents the request.
           content:
             application/json:
               schema:
@@ -402,8 +402,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '503':
-          description: Service Unavailable — AI configuration, credits or provider
-            availability prevents analysis.
+          description: Service Unavailable — AI or upload storage configuration, credits
+            or provider availability prevents the request.
           content:
             application/json:
               schema:
@@ -472,8 +472,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '503':
-          description: Service Unavailable — AI configuration, credits or provider
-            availability prevents analysis.
+          description: Service Unavailable — AI or upload storage configuration, credits
+            or provider availability prevents the request.
           content:
             application/json:
               schema:
@@ -541,8 +541,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '503':
-          description: Service Unavailable — AI configuration, credits or provider
-            availability prevents analysis.
+          description: Service Unavailable — AI or upload storage configuration, credits
+            or provider availability prevents the request.
           content:
             application/json:
               schema:
@@ -604,8 +604,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '503':
-          description: Service Unavailable — AI configuration, credits or provider
-            availability prevents analysis.
+          description: Service Unavailable — AI or upload storage configuration, credits
+            or provider availability prevents the request.
           content:
             application/json:
               schema:
@@ -675,8 +675,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '503':
-          description: Service Unavailable — AI configuration, credits or provider
-            availability prevents analysis.
+          description: Service Unavailable — AI or upload storage configuration, credits
+            or provider availability prevents the request.
           content:
             application/json:
               schema:
@@ -758,8 +758,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '503':
-          description: Service Unavailable — AI configuration, credits or provider
-            availability prevents analysis.
+          description: Service Unavailable — AI or upload storage configuration, credits
+            or provider availability prevents the request.
           content:
             application/json:
               schema:
@@ -829,8 +829,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '503':
-          description: Service Unavailable — AI configuration, credits or provider
-            availability prevents analysis.
+          description: Service Unavailable — AI or upload storage configuration, credits
+            or provider availability prevents the request.
           content:
             application/json:
               schema:
@@ -906,8 +906,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '503':
-          description: Service Unavailable — AI configuration, credits or provider
-            availability prevents analysis.
+          description: Service Unavailable — AI or upload storage configuration, credits
+            or provider availability prevents the request.
           content:
             application/json:
               schema:
@@ -976,8 +976,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '503':
-          description: Service Unavailable — AI configuration, credits or provider
-            availability prevents analysis.
+          description: Service Unavailable — AI or upload storage configuration, credits
+            or provider availability prevents the request.
           content:
             application/json:
               schema:
@@ -1053,8 +1053,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '503':
-          description: Service Unavailable — AI configuration, credits or provider
-            availability prevents analysis.
+          description: Service Unavailable — AI or upload storage configuration, credits
+            or provider availability prevents the request.
           content:
             application/json:
               schema:
@@ -1130,8 +1130,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '503':
-          description: Service Unavailable — AI configuration, credits or provider
-            availability prevents analysis.
+          description: Service Unavailable — AI or upload storage configuration, credits
+            or provider availability prevents the request.
           content:
             application/json:
               schema:
@@ -1206,8 +1206,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '503':
-          description: Service Unavailable — AI configuration, credits or provider
-            availability prevents analysis.
+          description: Service Unavailable — AI or upload storage configuration, credits
+            or provider availability prevents the request.
           content:
             application/json:
               schema:
@@ -1277,8 +1277,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '503':
-          description: Service Unavailable — AI configuration, credits or provider
-            availability prevents analysis.
+          description: Service Unavailable — AI or upload storage configuration, credits
+            or provider availability prevents the request.
           content:
             application/json:
               schema:
