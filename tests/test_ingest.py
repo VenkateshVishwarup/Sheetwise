@@ -121,3 +121,14 @@ def test_yes_no_columns_become_true_false_fields(tmp_path):
     assert columns['interest_shown']['type']=='category'
     with duckdb.connect(p['databasePath'],read_only=True) as con:
         assert con.execute(f"SELECT {demo['key']} FROM dataset").fetchall()==[(True,),(False,),(None,),(False,)]
+
+
+def test_customer_names_are_protected_while_campaign_names_stay_analytical(tmp_path):
+    ingest=importlib.import_module('backend.ingest')
+    path=tmp_path/'calls.csv'
+    path.write_text('customer_name,campaign_name\nAsha Rao,Summer drive\nRavi Kumar,Always on\n')
+    p=ingest.ingest_file(path,path.name,tmp_path/'data')
+    customer,campaign=p['columns']
+    assert (customer['sensitive'],customer['queryable'])==(True,False)
+    assert (campaign['sensitive'],campaign['queryable'])==(False,True)
+    assert ingest.preview_rows(p)['rows'][0][customer['key']]=='••••'

@@ -1,3 +1,4 @@
+import pytest
 from backend.privacy import field_privacy
 
 
@@ -18,3 +19,13 @@ def test_contact_events_are_not_contact_details_but_birth_dates_are_personal():
     assert field_privacy('contact',[])[0] is True
     assert field_privacy('date_of_birth',[])[0] is True
     assert field_privacy('user_dob',[])[0] is True
+
+
+@pytest.mark.parametrize('name', ['customer_name', 'Customer Name', 'customerName', 'first_name', 'last_name', 'surname', 'name', 'display_name', 'agent_name', 'lead_name'])
+def test_person_name_columns_are_personal(name):
+    assert field_privacy(name, []) == (True, 'personal')
+
+
+@pytest.mark.parametrize('name', ['template_name', 'campaign_name', 'ad_name', 'adset_name', 'file_name', 'company_name', 'product_name', 'business_type'])
+def test_business_label_names_are_not_personal(name):
+    assert field_privacy(name, []) == (False, '')
