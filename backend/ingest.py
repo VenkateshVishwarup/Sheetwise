@@ -2,17 +2,21 @@
 import csv
 import datetime as dt
 import math
+import re
 import tempfile
 import uuid
 import zipfile
 from pathlib import Path
 
 import duckdb
-from .privacy import SECRET, field_privacy, mask_text
+from .privacy import SECRET, field_privacy, mask_text, name_privacy
 
 MAX_BYTES = 100 * 1024 * 1024
 MAX_ROWS = 2_000_000
 MAX_COLUMNS = 500
+DATE_NAME = re.compile(r'date|time|stamp|(^|[_. ])at$', re.I)
+DATE_FORMATS = "['%Y-%m-%d','%Y-%m-%d %H:%M:%S','%Y-%m-%d %H:%M','%Y-%m-%dT%H:%M:%S','%Y-%m-%dT%H:%M:%SZ','%Y-%m-%dT%H:%M:%S.%g','%Y-%m-%dT%H:%M:%S.%gZ','%d/%m/%Y','%d/%m/%Y %H:%M','%d/%m/%Y %H:%M:%S','%d/%m/%Y %I:%M %p','%d-%m-%Y','%d-%m-%Y %H:%M:%S','%d-%m-%Y, %H:%M:%S']"
+UNIX_MS_RANGE = (946684800000, 4102444800000)  # 2000-01-01 to 2100-01-01 UTC
 
 
 def quoted(name):
@@ -50,6 +54,21 @@ def _xlsx_csv(path, target, sheet_name):
         return sheet.title
     finally:
         book.close()
+
+
+def _date_expression(con, clean, name, nonempty):
+    """Recognize a labelled date column, including Unix time, before value-based privacy checks."""
+    if not nonempty or not DATE_NAME.search(name):
+        return None, None
+    parsed = f'TRY_STRPTIME({clean}, {DATE_FORMATS})'
+    if con.execute(f'SELECT COUNT({parsed}) FROM original').fetchone()[0] == nonempty:
+        return parsed, None
+    low, high = UNIX_MS_RANGE
+    for digits, scale in ((10, 1000), (13, 1)):
+        matched = con.execute(f"SELECT COUNT(*) FROM original WHERE regexp_full_match({clean}, '[0-9]{{{digits}}}') AND TRY_CAST({clean} AS BIGINT) * {scale} BETWEEN {low} AND {high}").fetchone()[0]
+        if matched == nonempty:
+            return f'epoch_ms(TRY_CAST({clean} AS BIGINT) * {scale})', f'{mask_text(name)}: converted from Unix time; times are UTC.'
+    return None, None
 
 
 def ingest_file(path, filename, data_dir, sheet_name=None):
@@ -100,10 +119,16 @@ def ingest_file(path, filename, data_dir, sheet_name=None):
                     nonempty, distinct = con.execute(f'SELECT COUNT({clean}), COUNT(DISTINCT {clean}) FROM original').fetchone()
                     # Inspect all values for obvious content risks without exposing them externally.
                     samples = [r[0] for r in con.execute(f'SELECT DISTINCT {clean} FROM original WHERE {clean} IS NOT NULL LIMIT 1000').fetchall()]
-                    sensitive, reason = field_privacy(name, samples)
+                    date_expression, date_warning = _date_expression(con, clean, name, nonempty)
+                    if date_expression and not name_privacy(name)[0]:
+                        # Every value parsed as a date, so phone-length digits here are timestamps.
+                        sensitive, reason = False, ''
+                    else:
+                        date_expression = None
+                        sensitive, reason = field_privacy(name, samples)
                     # Risk classification scans the complete column; sampling only
                     # helps infer representation and never defines the privacy boundary.
-                    if not sensitive:
+                    if not sensitive and not date_expression:
                         found_personal, found_unstructured = con.execute(f"SELECT COUNT(*) FILTER (WHERE regexp_matches({clean}, '[^ ]+@[^ ]+[.][A-Za-z]+') OR ((regexp_full_match({clean}, '[+]?[0-9][0-9 ()-]{{8,}}[0-9]')) AND NOT regexp_full_match({clean}, '[0-9]{{4}}-[0-9]{{2}}-[0-9]{{2}}')) OR starts_with({clean}, 'http://') OR starts_with({clean}, 'https://')), COUNT(*) FILTER (WHERE length({clean}) > 160 OR starts_with({clean}, '{{') OR starts_with({clean}, '[')) FROM original").fetchone()
                         if found_personal:
                             sensitive,reason=True,'personal'
@@ -115,10 +140,16 @@ def ingest_file(path, filename, data_dir, sheet_name=None):
                         col['type'] = 'identifier'
                     elif reason == 'unstructured':
                         col['type'] = 'text'
+                    elif date_expression:
+                        col['type'] = 'date'
+                        expression = date_expression
+                        if date_warning:
+                            warnings.append(date_warning)
+                        elif any('/' in v or '-' in v and not v.startswith(('19','20')) for v in samples):
+                            warnings.append(f'{col["name"]}: parsed day-first dates; verify this convention before comparing dates.')
                     elif nonempty:
                         bool_count = con.execute(f"SELECT COUNT(*) FROM original WHERE LOWER({clean}) IN ('true','false')").fetchone()[0]
                         numeric_count = con.execute(f'SELECT COUNT(TRY_CAST({clean} AS DOUBLE)) FROM original').fetchone()[0]
-                        date_formats = "['%Y-%m-%d','%Y-%m-%d %H:%M:%S','%Y-%m-%dT%H:%M:%S','%d/%m/%Y','%d/%m/%Y %I:%M %p','%d-%m-%Y %H:%M:%S']"
                         if bool_count == nonempty:
                             col['type'] = 'boolean'
                             expression = f'TRY_CAST({clean} AS BOOLEAN)'
@@ -132,16 +163,9 @@ def ingest_file(path, filename, data_dir, sheet_name=None):
                                 col['type'] = 'number'
                                 expression = f'TRY_CAST({clean} AS DOUBLE)'
                         elif ('date' in name.lower() or 'time' in name.lower()) and not sensitive:
-                            date_expr = f'TRY_STRPTIME({clean}, {date_formats})'
-                            date_count = con.execute(f'SELECT COUNT({date_expr}) FROM original').fetchone()[0]
-                            if date_count == nonempty:
-                                col['type'] = 'date'
-                                expression = date_expr
-                                if any('/' in v or '-' in v and not v.startswith(('19','20')) for v in samples):
-                                    warnings.append(f'{col["name"]}: parsed day-first dates; verify this convention before comparing dates.')
-                            else:
-                                col['type'] = 'text'
-                                col['queryable'] = False
+                            # Labelled as a date, but some values match no supported format.
+                            col['type'] = 'text'
+                            col['queryable'] = False
                         if col['type'] == 'category':
                             if distinct > 60 or any(len(v) > 80 for v in samples):
                                 col['type'] = 'text'

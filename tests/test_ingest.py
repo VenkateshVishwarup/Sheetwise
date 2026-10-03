@@ -71,3 +71,38 @@ def test_imprecise_decimal_and_scientific_values_stay_text(tmp_path):
     p=ingest.ingest_file(path,path.name,tmp_path/'data')
     assert all(not c['queryable'] for c in p['columns'][1:])
     assert ingest.preview_rows(p)['rows'][0]['c1']=='9007199254740993.0'
+
+
+def test_timestamps_in_common_export_formats_become_queryable_dates(tmp_path):
+    import datetime as dt
+    import duckdb
+    ingest=importlib.import_module('backend.ingest')
+    seconds=int(dt.datetime(2026,8,3,10,0,tzinfo=dt.timezone.utc).timestamp())
+    path=tmp_path/'journey.csv'
+    with path.open('w',newline='') as f:
+        writer=csv.writer(f)
+        writer.writerow(['region','timestamp','created_at','contacted_date','agent_endtime','callback_date'])
+        writer.writerow(['West',str(seconds),str(seconds*1000),'03-08-2026, 10:23:45','2026-08-03T10:23:45.123Z','15-08-2026'])
+        writer.writerow(['East',str(seconds+86400),str(seconds*1000+86400000),'04/08/2026 09:15','2026-08-04T09:00:00Z',''])
+        writer.writerow(['North',str(seconds+172800),str(seconds*1000+172800000),'05/08/2026 11:00:00','2026-08-05T09:00:00Z',''])
+    p=ingest.ingest_file(path,path.name,tmp_path/'data')
+    columns={c['name']:c for c in p['columns']}
+    for name in ('timestamp','created_at','contacted_date','agent_endtime','callback_date'):
+        assert (columns[name]['type'],columns[name]['queryable'],columns[name]['sensitive'])==('date',True,False), name
+    with duckdb.connect(p['databasePath'],read_only=True) as con:
+        stamp,millis,contacted=con.execute(f"SELECT {columns['timestamp']['key']},{columns['created_at']['key']},{columns['contacted_date']['key']} FROM dataset ORDER BY 1").fetchall()[0]
+    assert stamp==millis==dt.datetime(2026,8,3,10,0)
+    assert contacted==dt.datetime(2026,8,3,10,23,45)
+    assert any('timestamp' in w and 'Unix time' in w and 'UTC' in w for w in p['warnings'])
+
+
+def test_date_rules_keep_birth_dates_contact_details_and_unlabelled_numbers_protected(tmp_path):
+    ingest=importlib.import_module('backend.ingest')
+    path=tmp_path/'people.csv'
+    path.write_text('region,date_of_birth,contact_number,reference,response_time\nWest,15-08-1990,9876543210,1785751200,12\nEast,01-01-1985,9876543211,1785837600,30\n')
+    p=ingest.ingest_file(path,path.name,tmp_path/'data')
+    columns={c['name']:c for c in p['columns']}
+    assert columns['date_of_birth']['sensitive'] is True
+    assert columns['contact_number']['sensitive'] is True
+    assert columns['reference']['sensitive'] is True
+    assert columns['response_time']['type']=='number'

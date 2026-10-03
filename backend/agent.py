@@ -63,6 +63,23 @@ def metadata(profile):
     return [{k:c[k] for k in ('key','name','type','coverage','missingCount','distinctCount')} for c in profile['columns'] if c['queryable']]
 
 
+HIDDEN_REASONS = {'identifier':'an identifier','personal':'protected personal data','unstructured':'free text'}
+
+
+def hidden_mentions(profile, question):
+    """Name columns the question refers to that chat cannot use, so a clarification does not loop.
+    Added after the model call; protected column names are never sent to the model."""
+    words=' '+re.sub(r'[^a-z0-9]+',' ',question.lower())+' '
+    notes=[]
+    for c in profile['columns']:
+        name=re.sub(r'[^a-z0-9]+',' ',c['name'].lower()).strip()
+        if c['queryable'] or len(name)<3 or f' {name} ' not in words:
+            continue
+        reason=HIDDEN_REASONS.get(c.get('privacyReason')) or ('no values' if not c['coverage'] else 'free text or an unsupported format')
+        notes.append(f"{c['name']} ({reason})")
+    return ' Hidden from chat analysis: '+', '.join(notes[:5])+'. The Data explorer lists every column.' if notes else ''
+
+
 def answer_question(profile, question, history, provider=None):
     provider=provider or provider_call
     clean_question=mask_text(question.strip())
@@ -73,7 +90,7 @@ def answer_question(profile, question, history, provider=None):
     planned=provider('plan',payload)
     base={'id':str(uuid.uuid4()),'question':clean_question,'createdAt':dt.datetime.now(dt.timezone.utc).isoformat(),'pinned':False}
     if planned.get('clarification'):
-        text=planned['clarification'][:1000]
+        text=planned['clarification'][:1000]+hidden_mentions(profile,clean_question)
         return {**base,'kind':'clarification','title':'One detail to clarify','summary':text,'choices':planned.get('choices',[])[:3],'sql':None,'result':None,'attempts':0,'plan':'','messages':surface('One detail to clarify','Notice',{'text':text})}
     selected=set(planned.get('columns',[]))
     available={c['key'] for c in profile['columns'] if c['queryable']}

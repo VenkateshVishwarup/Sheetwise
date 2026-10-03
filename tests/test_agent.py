@@ -32,6 +32,7 @@ def test_clarification_never_executes_sql(tmp_path):
     answer = agent.answer_question(p, 'Show conversion', [], provider=provider)
     assert answer['kind'] == 'clarification'
     assert answer['sql'] is None
+    assert answer['summary'] == 'Which status field should I use?'
 
 
 def test_repairs_are_bounded(tmp_path):
@@ -45,3 +46,18 @@ def test_repairs_are_bounded(tmp_path):
     with pytest.raises(ValueError):
         agent.answer_question(p, 'Count users', [], provider=provider)
     assert calls == ['plan','generate','repair','repair']
+
+
+def test_clarification_names_hidden_columns_the_question_mentions(tmp_path):
+    agent = importlib.import_module('backend.agent')
+    p = importlib.import_module('backend.ingest').ingest_file(make_csv(tmp_path), 'users.csv', tmp_path / 'data')
+    sent = []
+    def provider(stage, payload):
+        sent.append(payload)
+        return {'columns': [], 'plan': '', 'clarification': 'No email or user field is available.', 'choices': []}
+    answer = agent.answer_question(p, 'Count records by email and user_id', [], provider=provider)
+    assert answer['summary'].startswith('No email or user field is available.')
+    assert 'email (protected personal data)' in answer['summary']
+    assert 'user_id (an identifier)' in answer['summary']
+    assert answer['messages'][2]['updateDataModel']['value']['text'] == answer['summary']
+    assert all('protected personal data' not in str(payload) for payload in sent)
