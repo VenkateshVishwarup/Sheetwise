@@ -106,3 +106,18 @@ def test_date_rules_keep_birth_dates_contact_details_and_unlabelled_numbers_prot
     assert columns['contact_number']['sensitive'] is True
     assert columns['reference']['sensitive'] is True
     assert columns['response_time']['type']=='number'
+
+
+def test_yes_no_columns_become_true_false_fields(tmp_path):
+    import duckdb
+    ingest=importlib.import_module('backend.ingest')
+    path=tmp_path/'calls.csv'
+    path.write_text('region,demo_scheduled,callback_requested,interest_shown\nWest,Yes,TRUE,yes\nEast,no,No,no\nNorth,,yes,maybe\nSouth,NO,,\n')
+    p=ingest.ingest_file(path,path.name,tmp_path/'data')
+    columns={c['name']:c for c in p['columns']}
+    demo,callback=columns['demo_scheduled'],columns['callback_requested']
+    assert (demo['type'],demo['trueCount'],demo['falseCount'],demo['missingCount'])==('boolean',1,2,1)
+    assert (callback['type'],callback['trueCount'],callback['falseCount'],callback['missingCount'])==('boolean',2,1,1)
+    assert columns['interest_shown']['type']=='category'
+    with duckdb.connect(p['databasePath'],read_only=True) as con:
+        assert con.execute(f"SELECT {demo['key']} FROM dataset").fetchall()==[(True,),(False,),(None,),(False,)]

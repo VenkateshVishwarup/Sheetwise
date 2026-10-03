@@ -148,7 +148,8 @@ def ingest_file(path, filename, data_dir, sheet_name=None):
                         elif any('/' in v or '-' in v and not v.startswith(('19','20')) for v in samples):
                             warnings.append(f'{col["name"]}: parsed day-first dates; verify this convention before comparing dates.')
                     elif nonempty:
-                        bool_count = con.execute(f"SELECT COUNT(*) FROM original WHERE LOWER({clean}) IN ('true','false')").fetchone()[0]
+                        # yes/no is a common export convention; TRY_CAST maps yes to true and no to false.
+                        bool_count = con.execute(f"SELECT COUNT(*) FROM original WHERE LOWER({clean}) IN ('true','false','yes','no')").fetchone()[0]
                         numeric_count = con.execute(f'SELECT COUNT(TRY_CAST({clean} AS DOUBLE)) FROM original').fetchone()[0]
                         if bool_count == nonempty:
                             col['type'] = 'boolean'

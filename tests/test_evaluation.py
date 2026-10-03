@@ -109,3 +109,15 @@ def test_imported_case_variants_are_checked_and_preserved(tmp_path):
 def test_common_outcome_proxies_are_excluded(name):
     from backend.evaluation import eligible_feature
     assert not eligible_feature({'name':name,'type':'category','queryable':True,'sensitive':False,'distinctCount':2})
+
+
+def test_imported_yes_no_column_is_an_evaluable_outcome(tmp_path):
+    from backend.ingest import ingest_file
+    from backend.evaluation import run_evaluation
+    path=tmp_path/'calls.csv'
+    path.write_text('business_type,demo_scheduled\n'+''.join(f"{'retail' if i%3 else 'clinic'},{'' if i>=150 else ('Yes' if i%3==0 else 'no')}\n" for i in range(180)))
+    p=ingest_file(path,path.name,tmp_path/'data')
+    keys={c['name']:c['key'] for c in p['columns']}
+    r=run_evaluation(p,definition(targetKey=keys['demo_scheduled'],featureKeys=[keys['business_type']]))
+    assert (r['knownRows'],r['unknownRows'],r['positiveRows'],r['negativeRows'])==(150,30,50,100)
+    assert r['ready']
