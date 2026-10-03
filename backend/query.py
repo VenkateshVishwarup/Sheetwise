@@ -38,6 +38,9 @@ def validate_sql(sql, columns):
         if not isinstance(table.this, exp.Identifier) or table.db or table.catalog or table.name not in {'dataset', *ctes}:
             raise ValueError('Only the selected dataset is accessible. File and external table access are blocked.')
     for node in tree.find_all(exp.Func):
+        # sqlglot models AND/OR as functions; they are boolean operators, not callable functions.
+        if isinstance(node, (exp.And, exp.Or)):
+            continue
         name = node.name.upper() if isinstance(node, exp.Anonymous) else node.sql_name().upper()
         if name not in ALLOWED_FUNCTIONS:
             raise ValueError(f'The function {name[:40]} is not allowed.')

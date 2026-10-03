@@ -65,3 +65,12 @@ def test_worker_uses_dedicated_entry_and_receives_no_credentials(tmp_path,monkey
     assert not any(k in seen['environment'] for k in ('OPENAI_API_KEY','BLOB_READ_WRITE_TOKEN','WORKSPACE_PASSWORD'))
     with pytest.raises(ValueError,match='exceeded'):
         query.execute_query(p,'SELECT COUNT(*) FROM dataset',timeout=.00001)
+
+
+def test_combined_conditions_are_allowed(tmp_path):
+    query = importlib.import_module('backend.query')
+    p = profile(tmp_path)
+    both = query.execute_query(p, "SELECT COUNT(*) AS users FROM dataset WHERE c1 = 'hot' AND c5 > 5")
+    either = query.execute_query(p, "SELECT COUNT(*) AS users FROM dataset WHERE c1 = 'cold' OR c5 = 20")
+    assert both['rows'] == [[2]]
+    assert either['rows'] == [[2]]
