@@ -76,3 +76,17 @@ def test_chat_pin_and_reload_use_executed_results(tmp_path, monkeypatch):
     assert reloaded.get(f'/api/datasets/{did}/answers').json()[0]['sql']=='SELECT COUNT(*) AS records FROM dataset'
     assert reloaded.post(f'/api/datasets/{did}/pins',json={'answerId':answer['id'],'pinned':False}).status_code==200
     assert reloaded.get(f'/api/datasets/{did}/pins').json()==[]
+
+
+def test_dataset_response_carries_trends_and_insights_but_not_the_raw_series(tmp_path, monkeypatch):
+    main=importlib.import_module('backend.main')
+    monkeypatch.delenv('WORKSPACE_PASSWORD', raising=False)
+    client=TestClient(main.create_app(tmp_path/'data', local_mode=True))
+    created=client.post('/api/demo').json()
+    dataset=client.get(f'/api/datasets/{created["id"]}').json()
+    assert [c['id'] for c in dataset['trends']][:2]==['trend-records','trend-c5']
+    assert dataset['insights'] and all(set(i)=={'text','source'} for i in dataset['insights'])
+    assert [c['id'] for c in created['trends']]==[c['id'] for c in dataset['trends']]
+    assert 'timeSeries' not in dataset
+    summary=client.get('/api/datasets').json()[0]
+    assert not {'timeSeries','trends','insights'} & set(summary)

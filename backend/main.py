@@ -22,7 +22,8 @@ from starlette.concurrency import run_in_threadpool
 from .agent import answer_question, configured, model_name
 from .auth import Sessions
 from .ingest import MAX_BYTES, ingest_file, preview_rows
-from .presentation import dashboard
+from .insights import insights
+from .presentation import dashboard, trend_cards
 from .store import Store
 from .limits import RequestBounds
 
@@ -65,9 +66,11 @@ def error(status,code,message):
 
 
 def public_profile(profile, full=True):
-    result={k:v for k,v in profile.items() if k!='databasePath'}
+    result={k:v for k,v in profile.items() if k not in ('databasePath','timeSeries')}
     if full:
         result['dashboard']=dashboard(profile)
+        result['trends']=trend_cards(profile)
+        result['insights']=insights(profile)
     else:
         result.pop('columns',None)
         result.pop('warnings',None)

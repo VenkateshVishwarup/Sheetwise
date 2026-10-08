@@ -17,3 +17,10 @@ def test_contract_is_valid_and_uses_components_and_examples():
                     assert '$ref' in content['schema']
             for parameter in operation.get('parameters',[]):
                 assert 'example' in parameter and '$ref' in parameter['schema']
+
+
+def test_dataset_contract_documents_trends_insights_and_trend_lines():
+    schemas=yaml.safe_load((Path(__file__).parents[1]/'docs/openapi.yaml').read_text())['components']['schemas']
+    assert {'trends','insights'}<=set(schemas['Dataset']['required'])
+    assert schemas['Insight']['required']==['text','source']
+    assert 'trendKey' in schemas['UiComponent']['properties'] and 'trendKey' in schemas['SurfaceData']['properties']

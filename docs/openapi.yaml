@@ -550,9 +550,9 @@ paths:
   /api/datasets/{dataset_id}:
     get:
       operationId: getDataset
-      summary: Read a dataset profile and its default dashboard.
-      description: Read a dataset profile and its default dashboard. All records belong
-        to the single authenticated internal workspace.
+      summary: Read a dataset profile with its dashboard, trends and insights.
+      description: Read a dataset profile with its dashboard, trends and insights.
+        All records belong to the single authenticated internal workspace.
       responses:
         '200':
           description: Request completed.
@@ -1632,6 +1632,8 @@ components:
           $ref: '#/components/schemas/Text'
         valueKey:
           $ref: '#/components/schemas/Text'
+        trendKey:
+          $ref: '#/components/schemas/Text'
         columns:
           $ref: '#/components/schemas/Strings'
         text:
@@ -1721,6 +1723,8 @@ components:
         labelKey:
           $ref: '#/components/schemas/Text'
         valueKey:
+          $ref: '#/components/schemas/Text'
+        trendKey:
           $ref: '#/components/schemas/Text'
         columns:
           $ref: '#/components/schemas/Strings'
@@ -1842,8 +1846,53 @@ components:
         $ref: '#/components/schemas/DashboardCard'
       maxItems: 10
       description: Deterministic charts generated from all dataset records.
-      example: &id011
+      example: &id012
       - *id010
+    Trends:
+      type: array
+      items:
+        $ref: '#/components/schemas/DashboardCard'
+      maxItems: 3
+      description: Line charts of records and true/false rates per day, week, month
+        or year of the best-populated date column. Each carries a dashed linear trend
+        fitted through complete periods. Empty when no date column covers at least
+        10% of records across three periods; datasets imported before trends existed
+        get one notice asking for a fresh upload.
+      example: &id013
+      - id: trend-records
+        title: Records per week
+        source: created_date
+        sql: SELECT date_trunc('week', c8) AS period, COUNT(*) AS records FROM dataset
+          WHERE c8 IS NOT NULL GROUP BY period ORDER BY period
+        messages: *id009
+    Insight:
+      type: object
+      description: A plain-language observation written by fixed server rules from
+        stored aggregates; no AI service is involved. Source names the column or columns
+        it comes from.
+      properties:
+        text:
+          $ref: '#/components/schemas/Text'
+        source:
+          $ref: '#/components/schemas/Text'
+      required:
+      - text
+      - source
+      additionalProperties: false
+      example: &id011
+        text: 'No steady trend in records per week: the peak was 5,439 in the week
+          of 31 Aug, and the latest complete week (21 Sep) had 885, 84% below the
+          peak.'
+        source: timestamp
+    Insights:
+      type: array
+      items:
+        $ref: '#/components/schemas/Insight'
+      maxItems: 5
+      description: 'Up to five observations: record trend, true/false rate trends,
+        dominant categories, then overall true rates.'
+      example: &id014
+      - *id011
     DatasetSummary:
       type: object
       description: An uploaded dataset without column or dashboard details.
@@ -1882,7 +1931,7 @@ components:
       - createdAt
       - sheetName
       additionalProperties: false
-      example: &id012
+      example: &id015
         id: 8c6bc148-166a-4cdd-b3d8-21609201b05f
         name: User journey
         filename: journey.csv
@@ -1895,7 +1944,8 @@ components:
         sheetName: null
     Dataset:
       type: object
-      description: The complete dataset profile and its default dashboard.
+      description: The complete dataset profile with its default dashboard, trends
+        over time and rule-based insights.
       properties:
         id:
           $ref: '#/components/schemas/ResourceId'
@@ -1925,6 +1975,10 @@ components:
           $ref: '#/components/schemas/Strings'
         dashboard:
           $ref: '#/components/schemas/Dashboard'
+        trends:
+          $ref: '#/components/schemas/Trends'
+        insights:
+          $ref: '#/components/schemas/Insights'
       required:
       - id
       - name
@@ -1939,6 +1993,8 @@ components:
       - columns
       - warnings
       - dashboard
+      - trends
+      - insights
       additionalProperties: false
       example:
         id: 8c6bc148-166a-4cdd-b3d8-21609201b05f
@@ -1955,7 +2011,9 @@ components:
         - *id001
         warnings:
         - Missing values remain unknown.
-        dashboard: *id011
+        dashboard: *id012
+        trends: *id013
+        insights: *id014
     DatasetList:
       type: array
       items:
@@ -1963,7 +2021,7 @@ components:
       maxItems: 10000
       description: Datasets in this shared workspace, newest first.
       example:
-      - *id012
+      - *id015
     PreviewColumn:
       type: object
       description: Source-preview column metadata.
@@ -1982,7 +2040,7 @@ components:
       - type
       - sensitive
       additionalProperties: false
-      example: &id013
+      example: &id016
         key: c1
         name: lead_status
         type: category
@@ -1993,8 +2051,8 @@ components:
         $ref: '#/components/schemas/PreviewColumn'
       maxItems: 500
       description: Preview column definitions.
-      example: &id014
-      - *id013
+      example: &id017
+      - *id016
     PreviewRow:
       type: object
       description: Original values keyed by safe column IDs; protected values display
@@ -2010,7 +2068,7 @@ components:
         $ref: '#/components/schemas/PreviewRow'
       maxItems: 100
       description: One preview page, with personal values masked.
-      example: &id015
+      example: &id018
       - c0: ••••
         c1: Hot
     Preview:
@@ -2032,14 +2090,14 @@ components:
       - offset
       additionalProperties: false
       example:
-        columns: *id014
-        rows: *id015
+        columns: *id017
+        rows: *id018
         total: 4628
         offset: 0
     QueryResult:
       type: object
       description: Values returned by validated SQL execution in the isolated worker.
-      properties: &id016
+      properties: &id019
         columns:
           $ref: '#/components/schemas/Strings'
         rows:
@@ -2048,7 +2106,7 @@ components:
           $ref: '#/components/schemas/Boolean'
         elapsedMs:
           $ref: '#/components/schemas/Count'
-      required: &id017
+      required: &id020
       - columns
       - rows
       - truncated
@@ -2068,8 +2126,8 @@ components:
     NullableResult:
       type: object
       description: Values returned by validated SQL execution in the isolated worker.
-      properties: *id016
-      required: *id017
+      properties: *id019
+      required: *id020
       additionalProperties: false
       example: null
       nullable: true
@@ -2119,7 +2177,7 @@ components:
       - plan
       - createdAt
       additionalProperties: false
-      example: &id018
+      example: &id021
         id: 8c6bc148-166a-4cdd-b3d8-21609201b05f
         question: How many records are in this dataset?
         kind: answer
@@ -2146,7 +2204,7 @@ components:
       maxItems: 10000
       description: Conversation answers in creation order.
       example:
-      - *id018
+      - *id021
     WorkspaceStatus:
       type: object
       description: Workspace availability. aiConfigured reports key presence, not
@@ -2290,7 +2348,7 @@ components:
       - message
       - requestId
       additionalProperties: false
-      example: &id019
+      example: &id022
         code: INVALID_REQUEST
         message: Choose a valid dataset.
         requestId: 8c6bc148-166a-4cdd-b3d8-21609201b05f
@@ -2304,7 +2362,7 @@ components:
       - error
       additionalProperties: false
       example:
-        error: *id019
+        error: *id022
     UploadPath:
       type: string
       description: An immutable upload pathname inside the private workspace Blob
@@ -2401,7 +2459,7 @@ components:
         tokenPayload:
           $ref: '#/components/schemas/NullableText'
       additionalProperties: false
-      example: &id020
+      example: &id023
         pathname: uploads/8c6bc148-166a-4cdd-b3d8-21609201b05f.csv
         clientPayload: null
         multipart: true
@@ -2420,7 +2478,7 @@ components:
       additionalProperties: false
       example:
         type: blob.generate-client-token
-        payload: *id020
+        payload: *id023
     BlobUploadResponse:
       type: object
       description: Upload authorization or completion acknowledgment returned by the
@@ -2489,7 +2547,7 @@ components:
       - positiveMeaning
       - negativeMeaning
       additionalProperties: false
-      example: &id025
+      example: &id028
         targetKey: c1
         featureKeys:
         - c0
@@ -2559,7 +2617,7 @@ components:
       - severity
       - columnKey
       additionalProperties: false
-      example: &id021
+      example: &id024
         code: CATEGORY_COLLISION
         message: Verify category names that differ only by spacing.
         severity: blocker
@@ -2570,8 +2628,8 @@ components:
         $ref: '#/components/schemas/ReadinessIssue'
       maxItems: 100
       description: Checks and cautions for this exact definition.
-      example: &id023
-      - *id021
+      example: &id026
+      - *id024
     ReadinessFeature:
       type: object
       description: Aggregate input coverage and category naming checks; no values
@@ -2597,7 +2655,7 @@ components:
       - distinctKnown
       - collisionGroups
       additionalProperties: false
-      example: &id022
+      example: &id025
         key: c0
         name: channel
         knownCoverage: 98.0
@@ -2611,7 +2669,7 @@ components:
       maxItems: 12
       description: The selected input checks.
       example:
-      - *id022
+      - *id025
     OutcomeReadiness:
       type: object
       description: Eligibility for a pilot evaluation, recomputed from the stored
@@ -2654,9 +2712,9 @@ components:
         positiveRows: 100
         negativeRows: 100
         targetName: converted
-        features: &id026
-        - *id022
-        issues: *id023
+        features: &id029
+        - *id025
+        issues: *id026
     EvaluationMetric:
       type: number
       description: A finite metric in [0,1]. ROC AUC and average precision are higher-is-better;
@@ -2690,7 +2748,7 @@ components:
       - averagePrecision
       - brier
       additionalProperties: false
-      example: &id024
+      example: &id027
         name: Categorical naive Bayes
         rocAuc: 0.71
         averagePrecision: 0.65
@@ -2701,8 +2759,8 @@ components:
         $ref: '#/components/schemas/EvaluationModel'
       maxItems: 2
       description: Reference and categorical model evaluated on the same holdout.
-      example: &id027
-      - *id024
+      example: &id030
+      - *id027
     EvaluationSeed:
       type: integer
       description: Fixed seed for the stratified 75/25 split.
@@ -2758,11 +2816,11 @@ components:
       - models
       - limitations
       additionalProperties: false
-      example: &id028
+      example: &id031
         id: 8c6bc148-166a-4cdd-b3d8-21609201b05f
         datasetId: 8c6bc148-166a-4cdd-b3d8-21609201b05f
         createdAt: '2026-09-08T18:00:00+00:00'
-        definition: *id025
+        definition: *id028
         readiness:
           ready: true
           totalRows: 240
@@ -2771,14 +2829,14 @@ components:
           positiveRows: 100
           negativeRows: 100
           targetName: converted
-          features: *id026
+          features: *id029
           issues: []
         trainRows: 150
         testRows: 50
         testPositiveRows: 25
         seed: 42
         algorithmVersion: snapshot-categorical-v1
-        models: *id027
+        models: *id030
         limitations:
         - Recorded status only; not a future forecast.
     EvaluationRuns:
@@ -2789,4 +2847,4 @@ components:
       description: Latest twenty completed evaluations for the selected dataset, newest
         first.
       example:
-      - *id028
+      - *id031

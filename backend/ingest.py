@@ -10,6 +10,7 @@ from pathlib import Path
 
 import duckdb
 from .privacy import SECRET, field_privacy, mask_text, name_privacy
+from .trends import time_series
 
 MAX_BYTES = 100 * 1024 * 1024
 MAX_ROWS = 2_000_000
@@ -204,7 +205,7 @@ def ingest_file(path, filename, data_dir, sheet_name=None):
                                     mismatch = con.execute(f'SELECT COUNT(*) FROM dataset WHERE {a["key"]} IS NOT NULL AND {b["key"]} IS NOT NULL AND {a["key"]} != {b["key"]}').fetchone()[0]
                                     if mismatch:
                                         warnings.append(f'{a["name"]} and {b["name"]} differ for {mismatch:,} records. They remain separate definitions.')
-                return {'id': dataset_id, 'name': mask_text(Path(filename).stem), 'filename': mask_text(Path(filename).name), 'rowCount': row_count, 'inputColumnCount': len(headers), 'columnCount': len(columns), 'excludedCount': excluded, 'sizeBytes': path.stat().st_size, 'createdAt': dt.datetime.now(dt.timezone.utc).isoformat(), 'sheetName': selected_sheet, 'columns': columns, 'warnings': warnings[:12], 'databasePath': str(database_path.resolve())}
+                return {'id': dataset_id, 'name': mask_text(Path(filename).stem), 'filename': mask_text(Path(filename).name), 'rowCount': row_count, 'inputColumnCount': len(headers), 'columnCount': len(columns), 'excludedCount': excluded, 'sizeBytes': path.stat().st_size, 'createdAt': dt.datetime.now(dt.timezone.utc).isoformat(), 'sheetName': selected_sheet, 'columns': columns, 'warnings': warnings[:12], 'timeSeries': time_series(con, columns, row_count), 'databasePath': str(database_path.resolve())}
             finally:
                 con.close()
     except Exception as exc:

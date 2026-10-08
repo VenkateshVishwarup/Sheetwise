@@ -1,5 +1,8 @@
 """A2UI messages contain only application-approved components and executed data."""
+import datetime as dt
 import uuid
+
+from .trends import MIN_KNOWN, chosen_rates, linear_fit, percents, shape
 
 CATALOG_ID = 'https://sheetwise.local/catalogs/analytics/v1'
 
@@ -11,6 +14,8 @@ def surface(title, component, data, subtitle='', surface_id=None):
         props.update({'value': {'path':'/value'}, 'detail': {'path':'/detail'}})
     elif component in ('BarChart','LineChart'):
         props.update({'rows':{'path':'/rows'},'labelKey':data['labelKey'],'valueKey':data['valueKey']})
+        if data.get('trendKey'):
+            props['trendKey']=data['trendKey']
     elif component == 'DataTable':
         props.update({'rows':{'path':'/rows'},'columns':data['columns']})
     elif component == 'Notice':
@@ -34,21 +39,73 @@ def answer_surface(title, chart_type, result):
     return surface(title,'DataTable',{'rows':objects, 'columns':names}, 'No matching records' if not rows else f'{len(rows):,} result rows')
 
 
+def display_name(name):
+    return name.replace('_',' ').replace('.',' · ').capitalize()
+
+
+def period_label(start, grain, many_years):
+    day=dt.date.fromisoformat(start)
+    if grain=='year':
+        return str(day.year)
+    if grain=='month':
+        return f'{day:%b %Y}'
+    return f'{day.day} {day:%b}'+(f' {day.year}' if many_years else '')
+
+
+def trend_cards(profile):
+    if 'timeSeries' not in profile:
+        if any(c['queryable'] and c['type']=='date' for c in profile['columns']):
+            text='This dataset was imported before trends were available. Upload this file again to see records and rates over time.'
+            return [{'id':'trends-reimport','title':'Trends','source':'Date columns','sql':'','messages':surface('Trends over time','Notice',{'text':text})}]
+        return []
+    series=profile['timeSeries']
+    if not series:
+        return []
+    grain,key,buckets=series['grain'],series['dateKey'],series['buckets']
+    many_years=len({b['start'][:4] for b in buckets})>1
+    labels=[period_label(b['start'],grain,many_years)+(' (partial)' if b['partial'] else '') for b in buckets]
+    grouping=f"FROM dataset WHERE {key} IS NOT NULL GROUP BY period ORDER BY period"
+    line_note=f' · dashed trend excludes partial {grain}s' if any(b['partial'] for b in buckets) else ' · dashed line shows the linear trend'
+
+    def card(card_id,title,source,sql,values,value_key,subtitle):
+        fit=linear_fit(values,buckets)
+        # A line through uneven periods would suggest a trend the insights say is absent.
+        drawn=fit and shape(fit)[0]!='uneven'
+        line=fit['line'] if drawn else [None]*len(buckets)
+        subtitle+=line_note if drawn else ' · no steady trend, so no trend line' if fit else f' · too few complete {grain}s for a trend line'
+        rows=[{'period':l,value_key:v,'trend':t} for l,v,t in zip(labels,values,line)]
+        return {'id':card_id,'title':title,'source':source,'sql':sql,'messages':surface(title,'LineChart',{'rows':rows,'labelKey':'period','valueKey':value_key,'trendKey':'trend'},subtitle)}
+
+    cards=[card('trend-records',f'Records per {grain}',series['dateName'],f"SELECT date_trunc('{grain}', {key}) AS period, COUNT(*) AS records {grouping}",[b['records'] for b in buckets],'records',f"By {series['dateName']} · {series['coverage']}% of records dated")]
+    for rate in chosen_rates(series):
+        sql=f"SELECT date_trunc('{grain}', {key}) AS period, 100.0 * COUNT(*) FILTER (WHERE {rate['key']} = true) / NULLIF(COUNT({rate['key']}), 0) AS percent_true {grouping}"
+        cards.append(card(f"trend-{rate['key']}",f"{display_name(rate['name'])} · % true per {grain}",f"{rate['name']} · {series['dateName']}",sql,percents(rate),'percent_true',f'Known values only · {grain}s with fewer than {MIN_KNOWN} known values are blank'))
+    return cards
+
+
+def dashboard_categories(profile):
+    categories=[c for c in profile['columns'] if c['queryable'] and c['type']=='category' and c['distinctCount']>1]
+    priorities=('lead_status','lead.source','lead_source','campaign_name','region','channel','source','status','category')
+    categories.sort(key=lambda c: (next((i for i,p in enumerate(priorities) if c['name']==p),99), -c['coverage']))
+    return categories[:4]
+
+
+def dashboard_booleans(profile):
+    bools=[c for c in profile['columns'] if c['queryable'] and c['type']=='boolean']
+    bools.sort(key=lambda c:(0 if 'convert' in c['name'] else 1, -c['coverage']))
+    return bools[:2]
+
+
 def dashboard(profile):
     cards=[]
     usable=[c for c in profile['columns'] if c['queryable']]
-    categories=[c for c in usable if c['type']=='category' and c['distinctCount']>1]
-    priorities=('lead_status','lead.source','lead_source','campaign_name','region','channel','source','status','category')
-    categories.sort(key=lambda c: (next((i for i,p in enumerate(priorities) if c['name']==p),99), -c['coverage']))
-    for c in categories[:4]:
+    for c in dashboard_categories(profile):
         rows=[{'category':r['label'],'records':r['count']} for r in c['distribution']]
         sql=f'SELECT {c["key"]} AS category, COUNT(*) AS records FROM dataset GROUP BY {c["key"]} ORDER BY records DESC LIMIT 12'
-        cards.append({'id':c['key'],'title':c['name'],'source':c['name'],'sql':sql,'messages':surface(c['name'].replace('_',' ').replace('.',' · ').capitalize(),'BarChart',{'rows':rows,'labelKey':'category','valueKey':'records'},f'{c["coverage"]}% populated · top 12 values')})
-    bools=[c for c in usable if c['type']=='boolean']
-    bools.sort(key=lambda c:(0 if 'convert' in c['name'] else 1, -c['coverage']))
-    for c in bools[:2]:
+        cards.append({'id':c['key'],'title':c['name'],'source':c['name'],'sql':sql,'messages':surface(display_name(c['name']),'BarChart',{'rows':rows,'labelKey':'category','valueKey':'records'},f'{c["coverage"]}% populated · top 12 values')})
+    for c in dashboard_booleans(profile):
         rows=[{'value':'True','records':c['trueCount']},{'value':'False','records':c['falseCount']},{'value':'Unknown','records':c['missingCount']}]
-        cards.append({'id':c['key'],'title':c['name'],'source':c['name'],'sql':f'SELECT {c["key"]} AS value, COUNT(*) AS records FROM dataset GROUP BY {c["key"]}', 'messages':surface(c['name'].replace('_',' ').replace('.',' · ').capitalize(),'BarChart',{'rows':rows,'labelKey':'value','valueKey':'records'},'True, false and unknown shown separately')})
+        cards.append({'id':c['key'],'title':c['name'],'source':c['name'],'sql':f'SELECT {c["key"]} AS value, COUNT(*) AS records FROM dataset GROUP BY {c["key"]}', 'messages':surface(display_name(c['name']),'BarChart',{'rows':rows,'labelKey':'value','valueKey':'records'},'True, false and unknown shown separately')})
     for c in [c for c in usable if c['type']=='number'][:max(0,4-len(cards))]:
         cards.append({'id':c['key'],'title':c['name'],'source':c['name'],'sql':f'SELECT AVG({c["key"]}) AS average FROM dataset','messages':surface(f'Average {c["name"]}','Metric',{'value':c['mean'],'detail':f'{c["coverage"]}% populated · missing values excluded'})})
     if not cards:

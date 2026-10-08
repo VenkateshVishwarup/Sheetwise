@@ -6,10 +6,11 @@ export interface Column {
   trueCount?: number; falseCount?: number; min?: number; max?: number; mean?: number;
 }
 export interface DashboardCard { id: string; title: string; source: string; sql: string; messages: unknown[] }
+export interface Insight { text: string; source: string }
 export interface Dataset {
   id: string; name: string; filename: string; rowCount: number; columnCount: number; inputColumnCount: number;
   excludedCount: number; sizeBytes: number; createdAt: string; sheetName: string|null; isDemo?: boolean;
-  columns: Column[]; warnings: string[]; dashboard: DashboardCard[];
+  columns: Column[]; warnings: string[]; dashboard: DashboardCard[]; trends: DashboardCard[]; insights: Insight[];
 }
 export interface Result { columns: string[]; rows: Cell[][]; truncated: boolean; elapsedMs: number }
 export interface Answer {

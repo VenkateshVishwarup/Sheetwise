@@ -51,3 +51,12 @@ void test('rejects unregistered display catalogs and invalid wire messages', () 
   assert.throws(()=>createAnalyticsProcessor([{version:'v0.9.1',createSurface:{surfaceId:'evil',catalogId:'https://evil.test'}}]));
   assert.throws(()=>createAnalyticsProcessor([{html:'<script>alert(1)</script>'}]));
 });
+
+void test('line charts accept a fitted trend and list it beside the real values', async () => {
+  const rows=[{period:'3 Aug',records:10,trend:10},{period:'10 Aug',records:20,trend:20},{period:'17 Aug (partial)',records:5,trend:null}];
+  const processor=createAnalyticsProcessor(messages({component:'LineChart',rows:{path:'/rows'},labelKey:'period',valueKey:'records',trendKey:'trend'},{rows}));
+  const surface=Array.from(processor.model.surfacesMap.values())[0];
+  const element=await renderSurface(surface);
+  const cells=Array.from(element.querySelectorAll('.chart-data tr')).map(r=>Array.from(r.querySelectorAll('th,td')).map(c=>c.textContent));
+  assert.deepEqual(cells,[['period','records','trend'],['3 Aug','10','10'],['10 Aug','20','20'],['17 Aug (partial)','5','—']]);
+});
