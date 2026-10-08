@@ -62,6 +62,14 @@ class CloudStore:
         path.unlink(missing_ok=True)
         return saved
 
+    def delete_dataset(self,dataset_id):
+        self.dataset(dataset_id)
+        # The profile goes last: if cleanup fails, the dataset stays listed and deleting again finishes it.
+        paths=[path for prefix in ('databases','answers','pins','evaluations','ai-insights') for path in self._paths(f'{prefix}/{dataset_id}/')]
+        for start in range(0,len(paths),100):
+            self.client.delete(paths[start:start+100])
+        self.client.delete(f'profiles/{dataset_id}.json')
+
     @contextmanager
     def materialize(self,profile):
         # Each execution owns its temporary file. Nothing depends on a warm instance.
@@ -91,4 +99,11 @@ class CloudStore:
 
     def evaluations(self,dataset_id):
         paths=sorted(self._paths(f'evaluations/{dataset_id}/'),reverse=True)[:20]
+        return [self._read(path) for path in paths]
+
+    def save_ai_insights(self,dataset_id,result):
+        self._write(f'ai-insights/{dataset_id}/{result["createdAt"]}--{result["id"]}.json',result)
+
+    def ai_insights(self,dataset_id):
+        paths=sorted(self._paths(f'ai-insights/{dataset_id}/'),reverse=True)[:5]
         return [self._read(path) for path in paths]

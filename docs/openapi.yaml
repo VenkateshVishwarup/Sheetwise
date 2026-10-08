@@ -618,6 +618,221 @@ paths:
         schema:
           $ref: '#/components/schemas/ResourceId'
         example: 8c6bc148-166a-4cdd-b3d8-21609201b05f
+    delete:
+      operationId: deleteDataset
+      summary: Permanently delete a dataset with its database, chat answers, saved
+        insights, evaluations and AI insights.
+      description: Permanently delete a dataset with its database, chat answers, saved
+        insights, evaluations and AI insights. All records belong to the single authenticated
+        internal workspace.
+      responses:
+        '200':
+          description: Request completed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DatasetDeletion'
+        '400':
+          description: Bad Request — invalid fields, unsupported file or rejected
+            query.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized — a valid workspace session is required.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden — untrusted host or cross-origin write.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Not Found — dataset or answer does not exist.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '413':
+          description: Payload Too Large — request or file exceeds its limit.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Too Many Requests — import or analysis capacity is busy.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal Error — the request could not be completed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Service Unavailable — AI or upload storage configuration, credits
+            or provider availability prevents the request.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      parameters:
+      - name: dataset_id
+        in: path
+        required: true
+        description: The dataset selected in the workspace.
+        schema:
+          $ref: '#/components/schemas/ResourceId'
+        example: 8c6bc148-166a-4cdd-b3d8-21609201b05f
+  /api/datasets/{dataset_id}/ai-insights:
+    get:
+      operationId: listAiInsights
+      summary: Read the most recent AI insight generations for a dataset.
+      description: Read the most recent AI insight generations for a dataset. All
+        records belong to the single authenticated internal workspace.
+      responses:
+        '200':
+          description: Request completed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AiInsightRuns'
+        '400':
+          description: Bad Request — invalid fields, unsupported file or rejected
+            query.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized — a valid workspace session is required.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden — untrusted host or cross-origin write.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Not Found — dataset or answer does not exist.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '413':
+          description: Payload Too Large — request or file exceeds its limit.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Too Many Requests — import or analysis capacity is busy.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal Error — the request could not be completed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Service Unavailable — AI or upload storage configuration, credits
+            or provider availability prevents the request.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      parameters:
+      - name: dataset_id
+        in: path
+        required: true
+        description: The dataset selected in the workspace.
+        schema:
+          $ref: '#/components/schemas/ResourceId'
+        example: 8c6bc148-166a-4cdd-b3d8-21609201b05f
+    post:
+      operationId: generateAiInsights
+      summary: Send aggregate totals for unprotected columns to OpenAI and save up
+        to five written insights.
+      description: Send aggregate totals for unprotected columns to OpenAI and save
+        up to five written insights. All records belong to the single authenticated
+        internal workspace.
+      responses:
+        '201':
+          description: Created successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AiInsightRun'
+        '400':
+          description: Bad Request — invalid fields, unsupported file or rejected
+            query.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized — a valid workspace session is required.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden — untrusted host or cross-origin write.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Not Found — dataset or answer does not exist.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '413':
+          description: Payload Too Large — request or file exceeds its limit.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Too Many Requests — import or analysis capacity is busy.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal Error — the request could not be completed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Service Unavailable — AI or upload storage configuration, credits
+            or provider availability prevents the request.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      parameters:
+      - name: dataset_id
+        in: path
+        required: true
+        description: The dataset selected in the workspace.
+        schema:
+          $ref: '#/components/schemas/ResourceId'
+        example: 8c6bc148-166a-4cdd-b3d8-21609201b05f
   /api/datasets/{dataset_id}/preview:
     get:
       operationId: getDatasetPreview
@@ -2333,6 +2548,7 @@ components:
       - IMPORT_BUSY
       - CHAT_BUSY
       - EVALUATION_BUSY
+      - DELETE_INCOMPLETE
     Error:
       type: object
       description: A standardized error without raw source values or provider credentials.
@@ -2848,3 +3064,90 @@ components:
         first.
       example:
       - *id031
+    DatasetDeletion:
+      type: object
+      description: Confirms that the dataset, its database, chat answers, saved insights,
+        evaluations and AI insights were permanently removed. Deletion cannot be undone;
+        if storage fails partway the dataset stays listed and deleting it again finishes
+        the job.
+      properties:
+        datasetId:
+          $ref: '#/components/schemas/ResourceId'
+        deleted:
+          $ref: '#/components/schemas/Boolean'
+      required:
+      - datasetId
+      - deleted
+      additionalProperties: false
+      example:
+        datasetId: 8c6bc148-166a-4cdd-b3d8-21609201b05f
+        deleted: true
+    AiInsight:
+      type: object
+      description: One OpenAI-written observation. Source names the columns it cites;
+        insights citing columns that were not sent are discarded.
+      properties:
+        title:
+          $ref: '#/components/schemas/ShortText'
+        text:
+          $ref: '#/components/schemas/Text'
+        source:
+          $ref: '#/components/schemas/Text'
+      required:
+      - title
+      - text
+      - source
+      additionalProperties: false
+      example: &id032
+        title: Demo bookings are falling
+        text: demo_scheduled was true for 7.8% of known records in the week of 3 Aug
+          and 1.4% in the week of 14 Sep; only 20.9% of records answer it, so check
+          how the field is filled before acting.
+        source: demo_scheduled · timestamp
+    AiInsightList:
+      type: array
+      items:
+        $ref: '#/components/schemas/AiInsight'
+      maxItems: 5
+      description: Up to five AI-written insights, most decision-relevant first.
+      example: &id033
+      - *id032
+    AiInsightRun:
+      type: object
+      description: 'One saved AI insight generation. Only aggregate totals for unprotected
+        columns were sent: category value counts (values under five records merged),
+        true/false/unknown counts, number min/max/mean and per-period counts and rates.
+        Rows and protected columns are never sent.'
+      properties:
+        id:
+          $ref: '#/components/schemas/ResourceId'
+        datasetId:
+          $ref: '#/components/schemas/ResourceId'
+        createdAt:
+          $ref: '#/components/schemas/CreatedAt'
+        model:
+          $ref: '#/components/schemas/ShortText'
+        insights:
+          $ref: '#/components/schemas/AiInsightList'
+      required:
+      - id
+      - datasetId
+      - createdAt
+      - model
+      - insights
+      additionalProperties: false
+      example: &id034
+        id: 8c6bc148-166a-4cdd-b3d8-21609201b05f
+        datasetId: 8c6bc148-166a-4cdd-b3d8-21609201b05f
+        createdAt: '2026-09-08T18:00:00+00:00'
+        model: gpt-5.6-sol
+        insights: *id033
+    AiInsightRuns:
+      type: array
+      items:
+        $ref: '#/components/schemas/AiInsightRun'
+      maxItems: 5
+      description: The five most recent AI insight generations for the dataset, newest
+        first; empty until one is generated.
+      example:
+      - *id034

@@ -1,13 +1,15 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { ArrowUpRight, Bookmark, ChartNoAxesCombined, Check, ChevronDown, ChevronRight, Columns3, FileSpreadsheet, LayoutDashboard, LoaderCircle, LockKeyhole, LogOut, MessageSquare, Plus, Search, ShieldCheck, Sparkles, Table2, Upload, Users, X, Info, Lightbulb } from 'lucide-react';
+import { ArrowUpRight, Bookmark, ChartNoAxesCombined, Check, ChevronDown, ChevronRight, Columns3, FileSpreadsheet, LayoutDashboard, LoaderCircle, LockKeyhole, LogOut, MessageSquare, Plus, Search, ShieldCheck, Sparkles, Table2, Trash2, Upload, Users, X, Info, Lightbulb } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { UploadDialog } from '@/components/analytics/upload-dialog';
 import { AnalyticsSurface } from '@/components/analytics/catalog';
 import { ChatPanel, SqlDisclosure } from '@/components/analytics/chat-panel';
 import { EvaluationPanel } from '@/components/analytics/evaluation-panel';
 import { DataExplorer } from '@/components/analytics/data-explorer';
+import { AiInsightsPanel } from '@/components/analytics/ai-insights-panel';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { api, number } from '@/lib/api';
 import type { Answer, DashboardCard, Dataset, Status } from '@/lib/types';
 
@@ -29,6 +31,9 @@ export default function Home() {
   const [loginBusy,setLoginBusy]=useState(false);
   const [warningsOpen,setWarningsOpen]=useState(false);
   const [search,setSearch]=useState('');
+  const [deleteOpen,setDeleteOpen]=useState(false);
+  const [deleting,setDeleting]=useState(false);
+  const [deleteError,setDeleteError]=useState('');
   const requestId=useRef(0);
 
   async function selectDataset(id:string) {
@@ -56,6 +61,16 @@ export default function Home() {
     try{await api(`/datasets/${dataset.id}/pins`,{method:'POST',body:JSON.stringify({answerId:answer.id,pinned:!answer.pinned})});setAnswers(a=>a.map(x=>x.id===answer.id?{...x,pinned:!x.pinned}:x));}
     catch(e){setError((e as Error).message);}
   }
+  async function removeDataset() {
+    if(!dataset)return;
+    setDeleting(true);setDeleteError('');
+    try{
+      await api(`/datasets/${dataset.id}`,{method:'DELETE'});
+      const list=await api<Dataset[]>('/datasets');
+      setDatasets(list);setDeleteOpen(false);
+      if(list.length)await selectDataset(list[0].id);else{setDataset(null);setAnswers([]);setView('overview');}
+    }catch(e){setDeleteError((e as Error).message);}finally{setDeleting(false);}
+  }
   async function login(e:React.SyntheticEvent<HTMLFormElement>) {e.preventDefault();setLoginBusy(true);setError('');try{await api('/session',{method:'POST',body:JSON.stringify({password})});setPassword('');await initialize();}catch(e){setError((e as Error).message);}finally{setLoginBusy(false);}}
   const pins=answers.filter(a=>a.pinned);
   const available=dataset?.columns.filter(c=>c.queryable).length??0;
@@ -74,10 +89,11 @@ export default function Home() {
         <div className="page-heading"><div><div className="eyebrow">YOUR DATA, A CLEARER PICTURE</div><h1>{view==='evaluate'?'Evaluate outcomes':view==='saved'?'Saved insights':view==='data'?'Data explorer':'Overview'}</h1><p>{view==='evaluate'?'Check your evidence before making predictions.':view==='saved'?'The answers worth coming back to.':view==='data'?'Understand your columns and inspect the source.':'A starting point for your next good question.'}</p></div><Button className="primary-button upload-button" onClick={()=>setUploadOpen(true)} disabled={busy}><Plus size={16}/> Upload spreadsheet</Button></div>
         {error&&<div className="error-banner" role="alert"><p>{error}</p><button aria-label="Dismiss error" onClick={()=>setError('')}><X size={16}/></button></div>}
         {loading?<output className="loading-state"><LoaderCircle className="spin" size={24}/><span>Preparing your workspace…</span></output>:!dataset?<section className="empty-workspace"><div className="empty-visual"><div className="empty-grid"><span/><span/><span/><span/><span/><span/><span/><span/><span/></div><div className="empty-sheet"><FileSpreadsheet size={34}/></div><span className="empty-spark"><Sparkles size={19}/></span></div><h2>There’s a story in your spreadsheet.</h2><p>Upload a table. Get a dashboard.<br/>Ask the questions that matter to you.</p><Button className="primary-button" onClick={()=>setUploadOpen(true)}><Upload size={16}/> Upload your first spreadsheet</Button><button className="demo-button" onClick={demo}>Explore a sample dataset <ArrowUpRight size={15}/></button><div className="file-types"><span>CSV</span><span>XLSX</span><small>Up to 100 MB per file</small></div></section>:<>
-          <div className="dataset-banner"><div className="dataset-icon"><FileSpreadsheet size={20}/></div><div className="dataset-banner-name"><strong title={dataset.filename}>{dataset.name}</strong><span>{dataset.isDemo?'Synthetic demo · ':''}{dataset.filename.toLowerCase().endsWith('.xlsx')?`XLSX · ${dataset.sheetName}`:'CSV'} <i>·</i> {(dataset.sizeBytes/1024/1024).toFixed(1)} MB <i>·</i> {number(dataset.rowCount)} records</span></div><span className="ready-badge"><Check size={12}/> Ready to explore</span></div>
+          <div className="dataset-banner"><div className="dataset-icon"><FileSpreadsheet size={20}/></div><div className="dataset-banner-name"><strong title={dataset.filename}>{dataset.name}</strong><span>{dataset.isDemo?'Synthetic demo · ':''}{dataset.filename.toLowerCase().endsWith('.xlsx')?`XLSX · ${dataset.sheetName}`:'CSV'} <i>·</i> {(dataset.sizeBytes/1024/1024).toFixed(1)} MB <i>·</i> {number(dataset.rowCount)} records</span></div><span className="ready-badge"><Check size={12}/> Ready to explore</span><button className="delete-dataset" onClick={()=>{setDeleteError('');setDeleteOpen(true);}} disabled={busy} aria-label={`Delete ${dataset.name}`}><Trash2 size={15}/><span>Delete</span></button></div>
           <div className="view-tabs" role="tablist"><button role="tab" aria-selected={view==='overview'} className={view==='overview'?'active':''} onClick={()=>setView('overview')}><LayoutDashboard size={15}/> Overview</button><button role="tab" aria-selected={view==='data'} className={view==='data'?'active':''} onClick={()=>setView('data')}><Columns3 size={15}/> Data</button><button role="tab" aria-selected={view==='saved'} className={view==='saved'?'active':''} onClick={()=>setView('saved')}><Bookmark size={15}/> Saved{pins.length>0&&<span>{pins.length}</span>}</button><button role="tab" aria-selected={view==='evaluate'} className={view==='evaluate'?'active':''} onClick={()=>setView('evaluate')}><ShieldCheck size={15}/> Evaluate</button><span className="view-tabs-note">{view==='overview'?'Automatically generated from your data':''}</span></div>
           {view==='overview'&&<><section className="metrics-grid" aria-label="Dataset summary">{[{label:'Total records',value:number(dataset.rowCount),detail:'Rows in this dataset',icon:Users},{label:'Attributes',value:number(dataset.inputColumnCount),detail:`${dataset.excludedCount} secret fields excluded`,icon:Columns3},{label:'Ready for analysis',value:number(available),detail:'Usable columns for questions',icon:Sparkles},{label:'Average coverage',value:`${coverage.toFixed(1)}%`,detail:'Populated values across columns',icon:ChartNoAxesCombined}].map(m=><article className="metric-card" key={m.label}><div><span>{m.label}</span><m.icon size={16}/></div><strong>{m.value}</strong><small>{m.detail}</small></article>)}</section>
             {dataset.warnings.length>0&&<div className="data-note"><button onClick={()=>setWarningsOpen(!warningsOpen)} aria-expanded={warningsOpen}><Info size={16}/><span><strong>A note about this data</strong> {dataset.warnings.length} things to keep in mind</span><ChevronDown className={warningsOpen?'rotate':''} size={16}/></button>{warningsOpen&&<ul>{dataset.warnings.map(w=><li key={w}>{w}</li>)}</ul>}</div>}
+            <AiInsightsPanel key={dataset.id} datasetId={dataset.id} aiConfigured={!!status?.aiConfigured}/>
             {dataset.insights.length>0&&<><div className="section-heading"><h2>Key insights</h2><span><span className="tiny-dot"/> Written by fixed rules from the charts below</span></div><ul className="insight-list">{dataset.insights.map(i=><li key={i.text}><Lightbulb size={16}/><div><p>{i.text}</p><span>Source: <code>{i.source}</code></span></div></li>)}</ul></>}
             {dataset.trends.length>0&&<><div className="section-heading"><h2>Trends</h2><span><span className="tiny-dot"/> Records with a date, by period</span></div><section className="charts-grid">{dataset.trends.map(chartCard)}</section></>}
             <div className="section-heading"><h2>At a glance</h2><span><span className="tiny-dot"/> Calculated from all records</span></div><section className="charts-grid">{dataset.dashboard.map(chartCard)}</section><div className="dashboard-bottom"><ShieldCheck size={14}/><p>Missing values stay unknown. Each insight shows the field it comes from.</p></div></>}
@@ -87,5 +103,6 @@ export default function Home() {
         </>}
       </main><div className={`chat-wrapper ${chatOpen?'open':''}`}><button className="chat-mobile-close" onClick={()=>setChatOpen(false)} aria-label="Close chat"><X size={20}/></button><ChatPanel key={dataset?.id ?? "empty"} dataset={dataset} status={status} answers={answers} busy={busy} error={chatError} pendingQuestion={pendingQuestion} onAsk={ask} onPin={pin}/></div></div>
     </div><UploadDialog open={uploadOpen} setOpen={setUploadOpen} onUploaded={p=>void uploaded(p)}/>
+    <AlertDialog open={deleteOpen} onOpenChange={open=>{if(!deleting)setDeleteOpen(open);}}><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Delete “{dataset?.name}”?</AlertDialogTitle><AlertDialogDescription>This permanently removes the dataset, its chat answers, saved insights, evaluations and AI insights for everyone in this workspace. It cannot be undone.</AlertDialogDescription></AlertDialogHeader>{deleteError&&<p role="alert" className="error-note">{deleteError}</p>}<AlertDialogFooter><AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel><AlertDialogAction variant="destructive" onClick={()=>void removeDataset()} disabled={deleting}>{deleting?'Deleting…':'Delete dataset'}</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
   </div>;
 }

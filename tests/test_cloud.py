@@ -24,7 +24,10 @@ class MemoryBlob:
         assert options['access']=='private'
         Path(local_path).write_bytes(self.objects[path])
     def head(self,path): return SimpleNamespace(size=len(self.objects[path]))
-    def delete(self,path): self.objects.pop(path,None)
+    def delete(self,paths):
+        # The SDK accepts one pathname or several.
+        for path in [paths] if isinstance(paths,str) else list(paths):
+            self.objects.pop(path,None)
 
 
 def test_cloud_upload_survives_instance_restart_and_preserves_auth(tmp_path,monkeypatch):
@@ -99,3 +102,37 @@ def test_failed_profile_commit_can_retry_and_cleanup_failure_keeps_success(tmp_p
     assert response.json()['rowCount']==2
     assert client.get('/api/datasets').json()[0]['id']==response.json()['id']
     assert client.post('/api/imports',json=body).status_code==201
+
+
+def test_cloud_delete_removes_every_object_and_a_failed_cleanup_can_be_retried(tmp_path,monkeypatch):
+    blob=MemoryBlob()
+    monkeypatch.setenv('STORAGE_MODE','blob')
+    monkeypatch.setenv('WORKSPACE_PASSWORD','test-workspace-password')
+    monkeypatch.setattr('backend.cloud_store.BlobClient',lambda:blob)
+    app=create_app(tmp_path,local_mode=False)
+    client=TestClient(app)
+    client.post('/api/session',json={'password':'test-workspace-password'})
+    kept,removed=str(uuid4()),str(uuid4())
+    for dataset_id in (kept,removed):
+        blob.objects[f'uploads/{dataset_id}.csv']=b'status\nHot\nCold\n'
+        assert client.post('/api/imports',json={'pathname':f'uploads/{dataset_id}.csv','filename':'leads.csv'}).status_code==201
+        answer={'id':str(uuid4()),'createdAt':'2026-09-09T12:00:00Z','summary':'Two records'}
+        app.state.store.save_answer(dataset_id,answer)
+        app.state.store.pin(dataset_id,answer['id'],True)
+        app.state.store.save_evaluation(dataset_id,{'id':str(uuid4()),'createdAt':'2026-09-09T12:00:00Z'})
+        app.state.store.save_ai_insights(dataset_id,{'id':str(uuid4()),'createdAt':'2026-09-09T12:00:00Z','insights':[]})
+    real_delete=blob.delete
+    def failing(paths):
+        raise RuntimeError('storage outage')
+    blob.delete=failing
+    assert client.delete(f'/api/datasets/{removed}').status_code>=500
+    assert client.get(f'/api/datasets/{removed}').status_code==200
+    blob.delete=real_delete
+    response=client.delete(f'/api/datasets/{removed}')
+    assert response.status_code==200,response.text
+    assert response.json()=={'datasetId':removed,'deleted':True}
+    assert not [p for p in blob.objects if removed in p]
+    assert app.state.store.ai_insights(kept)
+    assert [p for p in blob.objects if kept in p]
+    assert [d['id'] for d in client.get('/api/datasets').json()]==[kept]
+    assert client.delete(f'/api/datasets/{removed}').status_code==404

@@ -18,6 +18,8 @@ class Store:
             con.executescript('''
                 CREATE TABLE IF NOT EXISTS evaluations (id TEXT PRIMARY KEY, dataset_id TEXT NOT NULL, result TEXT NOT NULL, created_at TEXT NOT NULL);
                 CREATE INDEX IF NOT EXISTS evaluation_dataset ON evaluations(dataset_id, created_at);
+                CREATE TABLE IF NOT EXISTS ai_insights (id TEXT PRIMARY KEY, dataset_id TEXT NOT NULL, result TEXT NOT NULL, created_at TEXT NOT NULL);
+                CREATE INDEX IF NOT EXISTS ai_insight_dataset ON ai_insights(dataset_id, created_at);
                 CREATE TABLE IF NOT EXISTS datasets (id TEXT PRIMARY KEY, profile TEXT NOT NULL);
                 CREATE TABLE IF NOT EXISTS answers (id TEXT PRIMARY KEY, dataset_id TEXT NOT NULL, answer TEXT NOT NULL, pinned INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL);
                 CREATE INDEX IF NOT EXISTS answer_dataset ON answers(dataset_id, created_at);
@@ -41,6 +43,17 @@ class Store:
         with self.connect() as con:
             return [json.loads(r[0]) for r in con.execute('SELECT profile FROM datasets ORDER BY rowid DESC')]
 
+    def delete_dataset(self, dataset_id):
+        profile=self.dataset(dataset_id)
+        database=Path(profile['databasePath'])
+        # Files go first: if removing them fails, the dataset stays listed and can be deleted again.
+        for path in (database, Path(f'{database}.wal')):
+            path.unlink(missing_ok=True)
+        with self.connect() as con:
+            for table in ('answers','evaluations','ai_insights'):
+                con.execute(f'DELETE FROM {table} WHERE dataset_id=?',(dataset_id,))
+            con.execute('DELETE FROM datasets WHERE id=?',(dataset_id,))
+
     def save_answer(self, dataset_id, answer):
         with self.connect() as con:
             con.execute('INSERT INTO answers VALUES (?,?,?,?,?)',(answer['id'],dataset_id,json.dumps(answer,allow_nan=False),0,answer['createdAt']))
@@ -63,3 +76,11 @@ class Store:
     def evaluations(self,dataset_id):
         with self.connect() as con:
             return [json.loads(r[0]) for r in con.execute('SELECT result FROM evaluations WHERE dataset_id=? ORDER BY created_at DESC LIMIT 20',(dataset_id,))]
+
+    def save_ai_insights(self,dataset_id,result):
+        with self.connect() as con:
+            con.execute('INSERT INTO ai_insights VALUES (?,?,?,?)',(result['id'],dataset_id,json.dumps(result,allow_nan=False),result['createdAt']))
+
+    def ai_insights(self,dataset_id):
+        with self.connect() as con:
+            return [json.loads(r[0]) for r in con.execute('SELECT result FROM ai_insights WHERE dataset_id=? ORDER BY created_at DESC LIMIT 5',(dataset_id,))]

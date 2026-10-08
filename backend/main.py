@@ -20,6 +20,7 @@ from pydantic import BaseModel, Field
 from starlette.concurrency import run_in_threadpool
 
 from .agent import answer_question, configured, model_name
+from .ai_insights import generate_ai_insights
 from .auth import Sessions
 from .ingest import MAX_BYTES, ingest_file, preview_rows
 from .insights import insights
@@ -257,6 +258,17 @@ def create_app(data_dir=None, local_mode=None):
     def get_dataset(dataset_id:str):
         return public_profile(profile_for(dataset_id))
 
+    @app.delete('/api/datasets/{dataset_id}',operation_id='deleteDataset')
+    def delete_dataset(dataset_id:str):
+        profile_for(dataset_id)
+        try:
+            store.delete_dataset(dataset_id)
+        except KeyError:
+            raise
+        except Exception:
+            return error(503,'DELETE_INCOMPLETE','The dataset was not fully deleted. Delete it again to finish removing it.')
+        return {'datasetId':dataset_id,'deleted':True}
+
     @app.get('/api/datasets/{dataset_id}/preview',operation_id='getDatasetPreview')
     def preview(dataset_id:str,offset:int=Query(0,ge=0),limit:int=Query(25,ge=1,le=100)):
         with store.materialize(profile_for(dataset_id)) as p:
@@ -279,6 +291,23 @@ def create_app(data_dir=None, local_mode=None):
                 answer=answer_question(ready,body.question,store.answers(dataset_id))
             store.save_answer(dataset_id,answer)
             return answer
+        finally:
+            chat_gate.release()
+
+    @app.get('/api/datasets/{dataset_id}/ai-insights',operation_id='listAiInsights')
+    def ai_insights(dataset_id:str):
+        profile_for(dataset_id)
+        return store.ai_insights(dataset_id)
+
+    @app.post('/api/datasets/{dataset_id}/ai-insights',status_code=201,operation_id='generateAiInsights')
+    def generate_insights(dataset_id:str):
+        p=profile_for(dataset_id)
+        if not chat_gate.acquire(blocking=False):
+            return error(429,'CHAT_BUSY','Two analyses are already running. Try again shortly.')
+        try:
+            result=generate_ai_insights(p)
+            store.save_ai_insights(dataset_id,result)
+            return result
         finally:
             chat_gate.release()
 

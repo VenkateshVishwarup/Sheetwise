@@ -90,3 +90,26 @@ def test_dataset_response_carries_trends_and_insights_but_not_the_raw_series(tmp
     assert 'timeSeries' not in dataset
     summary=client.get('/api/datasets').json()[0]
     assert not {'timeSeries','trends','insights'} & set(summary)
+
+
+def test_delete_dataset_removes_its_database_answers_and_evaluations(tmp_path, monkeypatch):
+    from pathlib import Path
+    main=importlib.import_module('backend.main')
+    monkeypatch.delenv('WORKSPACE_PASSWORD', raising=False)
+    app=main.create_app(tmp_path/'data', local_mode=True)
+    client=TestClient(app)
+    with make_csv(tmp_path).open('rb') as file:
+        removed=client.post('/api/datasets', files={'file':('users.csv',file,'text/csv')}).json()['id']
+    kept=client.post('/api/demo').json()['id']
+    database=Path(app.state.store.dataset(removed)['databasePath'])
+    app.state.store.save_answer(removed,{'id':'8c6bc148-166a-4cdd-b3d8-21609201b05f','createdAt':'2026-09-09T12:00:00Z','summary':'Three records'})
+    app.state.store.save_evaluation(removed,{'id':'9c6bc148-166a-4cdd-b3d8-21609201b05f','createdAt':'2026-09-09T12:00:00Z'})
+    response=client.delete(f'/api/datasets/{removed}')
+    assert response.status_code==200, response.text
+    assert response.json()=={'datasetId':removed,'deleted':True}
+    assert not database.exists()
+    assert client.get(f'/api/datasets/{removed}').status_code==404
+    assert app.state.store.answers(removed)==[] and app.state.store.evaluations(removed)==[]
+    assert [d['id'] for d in client.get('/api/datasets').json()]==[kept]
+    assert client.delete(f'/api/datasets/{removed}').status_code==404
+    assert client.delete('/api/datasets/not-an-id').status_code==400

@@ -24,3 +24,14 @@ def test_dataset_contract_documents_trends_insights_and_trend_lines():
     assert {'trends','insights'}<=set(schemas['Dataset']['required'])
     assert schemas['Insight']['required']==['text','source']
     assert 'trendKey' in schemas['UiComponent']['properties'] and 'trendKey' in schemas['SurfaceData']['properties']
+
+
+def test_contract_documents_dataset_deletion_and_ai_insights():
+    contract=yaml.safe_load((Path(__file__).parents[1]/'docs/openapi.yaml').read_text())
+    operations={op['operationId']:op for path in contract['paths'].values() for op in path.values()}
+    assert {'deleteDataset','listAiInsights','generateAiInsights'}<=set(operations)
+    assert '201' in operations['generateAiInsights']['responses'] and '404' in operations['deleteDataset']['responses']
+    schemas=contract['components']['schemas']
+    assert schemas['DatasetDeletion']['required']==['datasetId','deleted']
+    assert {'id','datasetId','createdAt','model','insights'}<=set(schemas['AiInsightRun']['required'])
+    assert 'DELETE_INCOMPLETE' in schemas['ErrorCode']['enum']
